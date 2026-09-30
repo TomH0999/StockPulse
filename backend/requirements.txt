@@ -1,0 +1,8 @@
+fastapi==0.110.0
+uvicorn==0.28.0
+sqlalchemy==2.0.28
+yfinance==0.2.36
+reportlab==4.1.0
+pydantic==2.6.4
+pandas==2.2.1
+requests==2.31.0
