@@ -132,6 +132,9 @@ export interface AiKey {
   errors: number;
   last_error: string | null;
   cooldown: number;
+  reason: 'daily' | 'rate' | null;
+  used_today: number;
+  budget: number;
 }
 
 export interface AiSettings {
@@ -140,6 +143,7 @@ export interface AiSettings {
   auto: {
     enabled: boolean;
     ai_hours: number;
+    ai_all: boolean;
     total: number;
     analysed: number;
     ai_analysed: number;
@@ -257,7 +261,7 @@ export const api = {
   aiSettings: () => get<AiSettings>('/settings/ai'),
   addAiKey: async (provider: string, key: string) => (await apiClient.post<AiSettings>('/settings/ai/keys', { provider, key })).data,
   removeAiKey: async (id: string) => (await apiClient.delete<AiSettings>(`/settings/ai/keys/${id}`)).data,
-  setAuto: async (enabled: boolean, ai_hours: number) => (await apiClient.put<AiSettings>('/settings/auto', { enabled, ai_hours })).data,
+  setAuto: async (enabled: boolean, ai_hours: number, ai_all = false) => (await apiClient.put<AiSettings>('/settings/auto', { enabled, ai_hours, ai_all })).data,
 };
 
 export const errorMessage = (e: unknown): string =>

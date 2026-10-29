@@ -87,8 +87,9 @@ export function SettingsModal({ onClose, lang, setLang, dark, setDark, onSaved }
                 <li key={k.id} className="flex items-center gap-2 text-xs p-2 rounded-lg border border-slate-200 dark:border-slate-800">
                   <b className="w-20">{k.provider}</b>
                   <span className="font-mono">{k.hint}</span>
-                  <span className="muted truncate flex-1">{k.model ?? ''} · ✓ {k.ok}{k.errors ? ` · ✗ ${k.errors}` : ''}
-                    {k.cooldown > 0 && ` · ${t.cooldown} ${k.cooldown}s`}</span>
+                  <span className="muted truncate flex-1" title={k.model ?? ''}>{k.used_today}/{k.budget} {t.usedToday}{k.errors ? ` · ✗ ${k.errors}` : ''}
+                    {k.cooldown > 0 && <span className="text-amber-500"> · {t.cooldown} {k.cooldown >= 3600 ? `${Math.floor(k.cooldown / 3600)} h ${Math.floor((k.cooldown % 3600) / 60)} min`
+                      : k.cooldown >= 60 ? `${Math.ceil(k.cooldown / 60)} min` : `${k.cooldown} s`} ({k.reason === 'daily' ? t.quotaDaily : t.rateLimited})</span>}</span>
                   {k.last_error && <span className="text-amber-500 truncate max-w-[120px]" title={k.last_error}>⚠</span>}
                   <button className="muted hover:text-rose-500 cursor-pointer" title={t.remove} onClick={() => run(api.removeAiKey(k.id))}>
                     <Trash2 className="w-3.5 h-3.5" />
@@ -150,13 +151,18 @@ export function SettingsModal({ onClose, lang, setLang, dark, setDark, onSaved }
           <section className="space-y-2">
             <h3 className="font-bold">{t.autoTitle}</h3>
             <label className="flex items-center gap-2 text-sm cursor-pointer">
-              <input type="checkbox" className="accent-sky-600" checked={auto.enabled} onChange={(e) => run(api.setAuto(e.target.checked, auto.ai_hours))} />
+              <input type="checkbox" className="accent-sky-600" checked={auto.enabled} onChange={(e) => run(api.setAuto(e.target.checked, auto.ai_hours, auto.ai_all))} />
               {t.autoEnabled}
+            </label>
+            <p className="text-xs muted">{t.aiAutoScope}</p>
+            <label className="flex items-center gap-2 text-sm cursor-pointer">
+              <input type="checkbox" className="accent-sky-600" checked={auto.ai_all} onChange={(e) => run(api.setAuto(auto.enabled, auto.ai_hours, e.target.checked))} />
+              {t.aiAll}
             </label>
             <div className="flex items-center gap-2 text-sm">
               <span>{t.aiHours}</span>
               <input type="number" min={1} max={168} className="input !w-20 !py-1" defaultValue={auto.ai_hours}
-                onBlur={(e) => Number(e.target.value) !== auto.ai_hours && run(api.setAuto(auto.enabled, Number(e.target.value) || 12))} />
+                onBlur={(e) => Number(e.target.value) !== auto.ai_hours && run(api.setAuto(auto.enabled, Number(e.target.value) || 12, auto.ai_all))} />
             </div>
             <div className="text-xs muted">
               {t.progress} : {auto.analysed}/{auto.total} {t.analysedLocal} · {auto.ai_analysed} {t.analysedAi} · {auto.keys_available}/{settings?.keys.length ?? 0} {t.keysReady}

@@ -300,8 +300,9 @@ def remove_ai_key(key_id: str):
 
 
 @app.put("/api/settings/auto")
-def set_auto(enabled: bool = Body(...), ai_hours: float = Body(12)):
+def set_auto(enabled: bool = Body(...), ai_hours: float = Body(12), ai_all: bool = Body(False)):
     store.set_setting("auto_enabled", "1" if enabled else "0")
+    store.set_setting("auto_ai_all", "1" if ai_all else "0")
     store.set_setting("auto_ai_hours", str(max(1.0, min(168.0, ai_hours))))
     return get_ai_settings()
 

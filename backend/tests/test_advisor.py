@@ -92,13 +92,13 @@ def test_advise_full_path_cache_and_ai(market, monkeypatch):
     assert advisor.history_log("MC.PA")[0]["verdict"] == r["verdict"]
     assert advisor.advise("MC.PA", "fr")["generated_at"] == r["generated_at"]  # cache
     monkeypatch.setattr(ai_pool, "has_keys", lambda: True)
-    monkeypatch.setattr(ai_pool, "complete_json", lambda p, w=0: ({"verdict": "BUY", "score": 30, "confidence": "high", "summary": "OK",
+    monkeypatch.setattr(ai_pool, "complete_json", lambda p, *a: ({"verdict": "BUY", "score": 30, "confidence": "high", "summary": "OK",
                                                                    "opportunities": ["a"], "threats": ["b"], "patterns": [], "catalysts": ["c"],
                                                                    "article_sentiments": []}, "groq"))
     ai = advisor.advise("MC.PA", "fr")  # le cache local est ignoré quand une IA est disponible
     assert ai["engine"] == "groq" and ai["verdict"] == "BUY" and ai["verification"]["status"] in ("verified", "warning")
 
-    def boom(p, w=0):
+    def boom(p, *a):
         raise ai_pool.NoCapacity("quota")
     monkeypatch.setattr(ai_pool, "complete_json", boom)
     fallback = advisor.advise("MC.PA", "fr", force=True)
@@ -107,7 +107,7 @@ def test_advise_full_path_cache_and_ai(market, monkeypatch):
 
 def test_invalid_ai_verdict_is_ignored(market, monkeypatch):
     monkeypatch.setattr(ai_pool, "has_keys", lambda: True)
-    monkeypatch.setattr(ai_pool, "complete_json", lambda p, w=0: ({"verdict": "MOON", "score": 999}, "groq"))
+    monkeypatch.setattr(ai_pool, "complete_json", lambda p, *a: ({"verdict": "MOON", "score": 999}, "groq"))
     r = advisor.advise("AI.PA", "en", force=True)
     assert r["verdict"] in advisor.VERDICTS and r["score"] == 100
 

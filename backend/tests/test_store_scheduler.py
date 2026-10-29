@@ -32,7 +32,7 @@ def test_scheduler_queue_priorities(market, monkeypatch):
     assert q[0] == "ZZFAV.PA" and len(q) > 500
     advisor.advise("MC.PA", "fr")
     assert "MC.PA" not in scheduler._queue(ai=False)  # analyse locale fraîche
-    assert "MC.PA" in scheduler._queue(ai=True)  # pas encore analysée par IA
+    assert scheduler._queue(ai=True) == ["ZZFAV.PA"]  # IA automatique : favoris et PEA seulement
 
 
 def test_frontend_fallback_route():
@@ -42,3 +42,12 @@ def test_frontend_fallback_route():
         pytest.skip("interface non compilée")
     r = TestClient(main.app, base_url="http://127.0.0.1").get("/une/page/inconnue")
     assert r.status_code == 200 and "<div id=\"root\">" in r.text
+
+
+def test_ai_queue_limited_to_portfolio_and_favorites(market, monkeypatch):
+    with store.connect() as conn:
+        conn.execute("INSERT INTO favorites (symbol, name, position) VALUES ('ZZFAV.PA', '', 1)")
+    monkeypatch.setattr(scheduler.screener, "snapshot", lambda max_age=0: ({}, time.time()))
+    assert scheduler._queue(ai=True) == ["ZZFAV.PA"]
+    store.set_setting("auto_ai_all", "1")
+    assert len(scheduler._queue(ai=True)) > 500

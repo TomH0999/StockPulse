@@ -13,7 +13,8 @@ status = {"local_done": 0, "ai_done": 0, "ai_running": 0, "last_error": None}
 
 def settings() -> dict:
     return {"enabled": store.get_setting("auto_enabled", "1") == "1",
-            "ai_hours": float(store.get_setting("auto_ai_hours", "12"))}
+            "ai_hours": float(store.get_setting("auto_ai_hours", "12")),
+            "ai_all": store.get_setting("auto_ai_all", "0") == "1"}
 
 
 def _lang() -> str:
@@ -34,7 +35,10 @@ def _queue(ai: bool) -> list[str]:
     cache = advisor.cached_verdicts()
     snap, _ = screener.snapshot(max_age=3600)
     favs = _favorites()
-    order = favs + sorted((s for s in catalog.core_symbols() if s not in favs), key=lambda s: -abs((snap.get(s) or {}).get("chg_1d") or 0))
+    if ai and not settings()["ai_all"]:
+        order = favs  # IA automatique réservée au PEA et aux favoris (quotas gratuits)
+    else:
+        order = favs + sorted((s for s in catalog.core_symbols() if s not in favs), key=lambda s: -abs((snap.get(s) or {}).get("chg_1d") or 0))
     max_ai_age = settings()["ai_hours"] * 3600
     out = []
     for s in order:
@@ -63,7 +67,7 @@ def _local_loop():
 def _ai_one(sym: str) -> bool:
     status["ai_running"] += 1
     try:
-        r = advisor.advise(sym, _lang(), force=True, use_ai=True, max_wait=0, backfill=False, fetch_fundamentals=False)
+        r = advisor.advise(sym, _lang(), force=True, use_ai=True, max_wait=0, backfill=False, fetch_fundamentals=False, background=True)
         if r["engine"] != "local":
             status["ai_done"] += 1
             return True
@@ -76,7 +80,7 @@ def _ai_one(sym: str) -> bool:
 def _ai_loop():
     while True:
         try:
-            workers = ai_pool.available_count()
+            workers = ai_pool.available_count(background=True)
             if settings()["enabled"] and workers:
                 batch = _queue(ai=True)[:workers]
                 if batch:

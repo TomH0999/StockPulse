@@ -372,7 +372,7 @@ Answer ONLY with JSON, all text in {LANG_NAMES.get(lang, 'English')}:
 "article_sentiments" MUST contain exactly one entry for EVERY numbered article (0 to {len(arts) - 1})."""
 
 
-def advise(sym, lang="fr", force=False, use_ai=True, max_wait=60.0, backfill=True, fetch_fundamentals=True):
+def advise(sym, lang="fr", force=False, use_ai=True, max_wait=20.0, backfill=True, fetch_fundamentals=True, background=False):
     """max_wait : attente maximale d'une clé IA disponible ; backfill : constitution de l'archive 24 mois."""
     sym = sym.upper()
     want_ai = use_ai and ai_pool.has_keys()
@@ -400,7 +400,7 @@ def advise(sym, lang="fr", force=False, use_ai=True, max_wait=60.0, backfill=Tru
     if want_ai:
         recent = arts[:50]
         try:
-            ai, provider = ai_pool.complete_json(_prompt(result, recent, lang), max_wait)
+            ai, provider = ai_pool.complete_json(_prompt(result, recent, lang), max_wait, background)
             v = ai.get("verdict") if ai.get("verdict") in VERDICTS else result["verdict"]
             local_score = result["score"]
             known = _known_values(result, quote)

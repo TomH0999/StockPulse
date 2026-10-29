@@ -259,6 +259,11 @@ const en = {
   st_delisted_help: 'No longer listed (bankruptcy, takeover or delisting)',
   isNew: 'New',
   hc_catalog: 'Catalogue',
+  usedToday: 'today',
+  quotaDaily: 'daily quota reached',
+  rateLimited: 'rate limit',
+  aiAll: 'Also use AI on the whole catalogue (uses much more quota)',
+  aiAutoScope: 'Automatic AI analyses are limited to your PEA and favourites, using at most 70% of each key’s daily quota; your own requests always come first.',
 };
 
 type Dict = typeof en;
@@ -522,6 +527,11 @@ const fr: Dict = {
   st_delisted_help: 'Plus cotée (faillite, rachat ou retrait de la cote)',
   isNew: 'Nouveau',
   hc_catalog: 'Catalogue',
+  usedToday: "aujourd'hui",
+  quotaDaily: 'quota du jour atteint',
+  rateLimited: 'limite de débit',
+  aiAll: "Utiliser aussi l'IA sur tout le catalogue (consomme beaucoup plus de quota)",
+  aiAutoScope: "Les analyses IA automatiques se limitent à votre PEA et à vos favoris, avec au plus 70 % du quota quotidien de chaque clé ; vos demandes passent toujours en priorité.",
 };
 
 const es: Dict = {
