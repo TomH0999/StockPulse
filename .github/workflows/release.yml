@@ -23,7 +23,7 @@ jobs:
         working-directory: backend
         run: |
           pip install -r requirements.txt pyinstaller
-          pyinstaller --noconfirm --onedir --name stockpulse-backend --add-data "../market_news.db;." --collect-submodules uvicorn main.py
+          pyinstaller --noconfirm --onedir --name stockpulse-backend --add-data "../market_news.db;." --add-data "catalog;catalog" --collect-submodules uvicorn main.py
 
       - uses: actions/setup-node@v4
         with:

@@ -4,17 +4,23 @@ import threading
 
 from fastapi import Body, FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
+from starlette.middleware.trustedhost import TrustedHostMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
+import catalog
 import store
-from services import advisor, news, yahoo
+from services import advisor, ai_pool, news, scheduler, screener, yahoo
 
 store.init()
 threading.Thread(target=news.migrate, daemon=True).start()
+scheduler.start()
 
 app = FastAPI(title="StockPulse Backend", version="1.0.0")
-app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
+# API réservée à l'application : seule l'interface de développement Vite peut l'appeler depuis une autre origine,
+# et l'en-tête Host est vérifié (protection contre le « DNS rebinding » depuis un site web malveillant)
+app.add_middleware(CORSMiddleware, allow_origins=["http://127.0.0.1:5173", "http://localhost:5173"], allow_methods=["*"], allow_headers=["*"])
+app.add_middleware(TrustedHostMiddleware, allowed_hosts=["127.0.0.1", "localhost"])
 
 BASE_DIR = getattr(sys, "_MEIPASS", os.path.dirname(os.path.abspath(__file__)))
 FRONTEND_DIST = os.environ.get("STOCKPULSE_FRONTEND") or os.path.join(BASE_DIR, "..", "frontend", "dist")
@@ -67,7 +73,23 @@ def get_news(symbol: str, refresh: bool = False):
 
 @app.get("/api/advice/{symbol}")
 def get_advice(symbol: str, lang: str = "fr", refresh: bool = False, ai: bool = True):
+    if store.get_setting("ui_lang") != lang:
+        store.set_setting("ui_lang", lang)
     return _yahoo(advisor.advise, symbol, lang, refresh, ai)
+
+
+@app.get("/api/catalog")
+def get_catalog():
+    return catalog.entries()
+
+
+@app.get("/api/screener")
+def get_screener():
+    """Toutes les entreprises du catalogue avec performances, volatilité et dernier conseil (classement, liste)."""
+    snap, updated = screener.snapshot()
+    cache = advisor.cached_verdicts()
+    rows = [{**e, **snap.get(e["symbol"], {}), "advice": cache.get(e["symbol"])} for e in catalog.entries()]
+    return {"updated": int(updated), "rows": rows}
 
 
 @app.get("/api/favorites")
@@ -105,25 +127,28 @@ def reorder_favorites(symbols: list[str] = Body(...)):
 
 @app.get("/api/settings/ai")
 def get_ai_settings():
-    provider, key = advisor.ai_settings()
-    return {"provider": provider, "has_key": bool(key), "key_hint": f"…{key[-4:]}" if key else ""}
+    return {"providers": list(ai_pool.PROVIDERS), "keys": ai_pool.public_keys(), "auto": scheduler.progress()}
 
 
-@app.put("/api/settings/ai")
-def set_ai_settings(provider: str = Body(...), key: str = Body("")):
-    if provider not in ("local", "gemini", "groq"):
-        raise HTTPException(400, "Fournisseur inconnu")
-    if provider != "local":
-        key = key.strip() or advisor.ai_settings()[1]
-        try:
-            advisor.test_ai(provider, key)
-        except Exception as e:
-            raise HTTPException(400, f"Clé refusée par {provider} : {str(e)[:200]}")
-    store.set_setting("ai_provider", provider)
-    if key:
-        store.set_setting("ai_key", key)
-    with store.connect() as conn:
-        conn.execute("DELETE FROM advice_cache")
+@app.post("/api/settings/ai/keys")
+def add_ai_key(provider: str = Body(...), key: str = Body(...)):
+    try:
+        ai_pool.add_key(provider, key)
+    except Exception as e:
+        raise HTTPException(400, f"Clé refusée par {provider} : {str(e)[:200]}")
+    return get_ai_settings()
+
+
+@app.delete("/api/settings/ai/keys/{key_id}")
+def remove_ai_key(key_id: str):
+    ai_pool.remove_key(key_id)
+    return get_ai_settings()
+
+
+@app.put("/api/settings/auto")
+def set_auto(enabled: bool = Body(...), ai_hours: float = Body(12)):
+    store.set_setting("auto_enabled", "1" if enabled else "0")
+    store.set_setting("auto_ai_hours", str(max(1.0, min(168.0, ai_hours))))
     return get_ai_settings()
 
 

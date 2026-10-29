@@ -7,10 +7,8 @@ import time
 from collections import defaultdict
 from datetime import datetime, timezone
 
-import requests
-
 import store
-from services import news, yahoo
+from services import ai_pool, news, yahoo
 
 CACHE_SECONDS = 3600
 VERDICTS = ["SELL", "REDUCE", "HOLD", "BUY", "STRONG_BUY"]
@@ -338,63 +336,10 @@ Answer ONLY with JSON, all text in {LANG_NAMES.get(lang, 'English')}:
 "article_sentiments" MUST contain exactly one entry for EVERY numbered article (0 to {len(arts) - 1})."""
 
 
-GROQ_PREFERRED = ["openai/gpt-oss-120b", "llama-3.3-70b-versatile", "qwen/qwen3.8-27b", "openai/gpt-oss-20b"]
-_groq_models: dict = {}
-
-
-def _groq_model(key):
-    """Choisit le meilleur modèle disponible (Groq retire régulièrement d'anciens modèles)."""
-    if key not in _groq_models:
-        res = requests.get("https://api.groq.com/openai/v1/models", headers={"Authorization": f"Bearer {key}"}, timeout=20)
-        res.raise_for_status()
-        ids = [m["id"] for m in res.json()["data"]]
-        fallback = next((m for m in ids if any(k in m for k in ("gpt-oss", "llama-3", "qwen"))), ids[0])
-        _groq_models[key] = next((m for m in GROQ_PREFERRED if m in ids), fallback)
-    return _groq_models[key]
-
-
-def _call_llm(provider, key, prompt):
-    if provider == "gemini":
-        res = requests.post(
-            "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent",
-            headers={"x-goog-api-key": key},
-            json={"contents": [{"parts": [{"text": prompt}]}],
-                  "generationConfig": {"responseMimeType": "application/json", "temperature": 0.3}}, timeout=120)
-        res.raise_for_status()
-        text = res.json()["candidates"][0]["content"]["parts"][0]["text"]
-    elif provider == "groq":
-        model = _groq_model(key)
-        body = {"model": model, "temperature": 0.3, "response_format": {"type": "json_object"}, "max_completion_tokens": 4000,
-                "messages": [{"role": "user", "content": prompt}]}
-        if "gpt-oss" in model:
-            body["reasoning_effort"] = "low"
-        for attempt in range(3):
-            res = requests.post("https://api.groq.com/openai/v1/chat/completions",
-                                headers={"Authorization": f"Bearer {key}"}, json=body, timeout=120)
-            if res.status_code != 429 or attempt == 2:
-                break
-            # Offre gratuite limitée en jetons par minute : on attend la réinitialisation indiquée par Groq
-            wait = re.match(r"(?:(\d+)m)?([\d.]+)s", res.headers.get("x-ratelimit-reset-tokens", "") or "")
-            time.sleep(min(65, (int(wait.group(1) or 0) * 60 + float(wait.group(2))) if wait else 20) + 1)
-        res.raise_for_status()
-        text = res.json()["choices"][0]["message"]["content"]
-    else:
-        raise ValueError("Fournisseur IA inconnu")
-    return json.loads(text[text.find("{"): text.rfind("}") + 1])
-
-
-def ai_settings():
-    return store.get_setting("ai_provider", "local"), store.get_setting("ai_key", "")
-
-
-def test_ai(provider, key):
-    _call_llm(provider, key, 'Reply with JSON {"ok": true}')
-
-
-def advise(sym, lang="fr", force=False, use_ai=True):
+def advise(sym, lang="fr", force=False, use_ai=True, max_wait=60.0, backfill=True):
+    """max_wait : attente maximale d'une clé IA disponible ; backfill : constitution de l'archive 24 mois."""
     sym = sym.upper()
-    provider, key = ai_settings()
-    want_ai = use_ai and provider != "local" and bool(key)
+    want_ai = use_ai and ai_pool.has_keys()
     if not force:
         with store.connect() as conn:
             row = conn.execute("SELECT created_at, payload FROM advice_cache WHERE symbol = ? AND lang = ?", (sym, lang)).fetchone()
@@ -404,7 +349,7 @@ def advise(sym, lang="fr", force=False, use_ai=True):
                 return cached
 
     quote = yahoo.quote(sym)
-    news.refresh(sym, quote.get("name", ""))
+    news.refresh(sym, quote.get("name", ""), backfill=backfill)
     hist = yahoo.daily_history(sym)
     arts = news.articles(sym)
     result = local_advice(sym, lang, quote, hist, arts)
@@ -412,7 +357,7 @@ def advise(sym, lang="fr", force=False, use_ai=True):
     if want_ai:
         recent = arts[:50]
         try:
-            ai = _call_llm(provider, key, _prompt(result, recent, lang))
+            ai, provider = ai_pool.complete_json(_prompt(result, recent, lang), max_wait)
             v = ai.get("verdict") if ai.get("verdict") in VERDICTS else result["verdict"]
             result.update({
                 "verdict": v, "verdict_label": T.get(lang, T["en"])["v"][v],
@@ -445,5 +390,6 @@ def cached_verdicts() -> dict:
     out = {}
     for r in rows:
         p = json.loads(r[1])
-        out[r[0]] = {"verdict": p["verdict"], "score": p["score"], "generated_at": p["generated_at"]}
+        out[r[0]] = {"verdict": p["verdict"], "score": p["score"], "confidence": p["confidence"],
+                     "engine": p["engine"], "generated_at": p["generated_at"]}
     return out

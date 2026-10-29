@@ -90,7 +90,7 @@ def _save(sym: str, items: list[dict]) -> int:
     return added
 
 
-def refresh(sym: str, company: str = "", force: bool = False):
+def refresh(sym: str, company: str = "", force: bool = False, backfill: bool = True):
     """Récupère les nouveaux articles (au plus toutes les 10 min par action)."""
     sym = sym.upper()
     if not force and time.time() - _last_fetch.get(sym, 0) < REFRESH_SECONDS:
@@ -114,7 +114,8 @@ def refresh(sym: str, company: str = "", force: bool = False):
             except Exception as e:
                 print(f"Source d'articles en erreur pour {sym}: {e}")
     _save(sym, items)
-    _start_backfill(sym, name or base)
+    if backfill:
+        _start_backfill(sym, name or base)
 
 
 def _start_backfill(sym: str, name: str):

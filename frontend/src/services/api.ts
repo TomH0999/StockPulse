@@ -77,16 +77,69 @@ export interface Advice {
   articles_analyzed: number;
 }
 
+export interface AdviceSummary {
+  verdict: Verdict;
+  score: number;
+  confidence: 'low' | 'medium' | 'high';
+  engine: string;
+  generated_at: number;
+}
+
 export interface Favorite {
   symbol: string;
   name: string;
-  advice: { verdict: Verdict; score: number; generated_at: number } | null;
+  advice: AdviceSummary | null;
+}
+
+export interface CatalogEntry {
+  symbol: string;
+  name: string;
+  market: string;
+  country: string;
+  pea: boolean;
+  sector: string | null;
+}
+
+export interface ScreenerRow extends CatalogEntry {
+  currency?: string;
+  price?: number;
+  chg_1d?: number;
+  chg_1w?: number | null;
+  chg_1m?: number | null;
+  chg_3m?: number | null;
+  chg_6m?: number | null;
+  chg_ytd?: number | null;
+  chg_1y?: number | null;
+  volatility?: number | null;
+  from_high?: number | null;
+  range_pos?: number | null;
+  spark?: number[];
+  advice: AdviceSummary | null;
+}
+
+export interface AiKey {
+  id: string;
+  provider: string;
+  hint: string;
+  model: string | null;
+  ok: number;
+  errors: number;
+  last_error: string | null;
+  cooldown: number;
 }
 
 export interface AiSettings {
-  provider: 'local' | 'gemini' | 'groq';
-  has_key: boolean;
-  key_hint: string;
+  providers: string[];
+  keys: AiKey[];
+  auto: {
+    enabled: boolean;
+    ai_hours: number;
+    total: number;
+    analysed: number;
+    ai_analysed: number;
+    keys_available: number;
+    last_error: string | null;
+  };
 }
 
 export interface SearchResult {
@@ -112,8 +165,12 @@ export const api = {
   addFavorite: async (symbol: string, name: string) => (await apiClient.post<Favorite[]>('/favorites', { symbol, name })).data,
   removeFavorite: async (symbol: string) => (await apiClient.delete<Favorite[]>(`/favorites/${encodeURIComponent(symbol)}`)).data,
   reorderFavorites: async (symbols: string[]) => (await apiClient.put<Favorite[]>('/favorites/order', symbols)).data,
+  catalog: () => get<CatalogEntry[]>('/catalog'),
+  screener: () => get<{ updated: number; rows: ScreenerRow[] }>('/screener'),
   aiSettings: () => get<AiSettings>('/settings/ai'),
-  saveAiSettings: async (provider: string, key: string) => (await apiClient.put<AiSettings>('/settings/ai', { provider, key })).data,
+  addAiKey: async (provider: string, key: string) => (await apiClient.post<AiSettings>('/settings/ai/keys', { provider, key })).data,
+  removeAiKey: async (id: string) => (await apiClient.delete<AiSettings>(`/settings/ai/keys/${id}`)).data,
+  setAuto: async (enabled: boolean, ai_hours: number) => (await apiClient.put<AiSettings>('/settings/auto', { enabled, ai_hours })).data,
 };
 
 export const errorMessage = (e: unknown): string =>
@@ -126,3 +183,8 @@ export const formatPrice = (value: number, currency: string, lang: Lang) => {
     return `${value.toFixed(2)} ${currency}`;
   }
 };
+
+let catalogPromise: Promise<CatalogEntry[]> | null = null;
+export const loadCatalog = () => (catalogPromise ??= api.catalog().catch((e) => { catalogPromise = null; throw e; }));
+
+export const pct = (v: number | null | undefined) => (v === null || v === undefined ? '–' : `${v > 0 ? '+' : ''}${v.toFixed(2)}%`);

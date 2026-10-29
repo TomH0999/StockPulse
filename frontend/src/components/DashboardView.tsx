@@ -8,11 +8,14 @@ import { ChartPanel } from './ChartPanel';
 import { AdvicePanel } from './AdvicePanel';
 import { NewsPanel } from './NewsPanel';
 
-const LAST_SYMBOL = 'stockpulse:lastSymbol';
+interface Props {
+  symbol: string;
+  onSelect: (symbol: string) => void;
+  settingsVersion: number;
+}
 
-export function DashboardView({ settingsVersion }: { settingsVersion: number }) {
+export function DashboardView({ symbol, onSelect, settingsVersion }: Props) {
   const { t, lang } = useI18n();
-  const [symbol, setSymbol] = useState(() => { try { return localStorage.getItem(LAST_SYMBOL) || 'AAPL'; } catch { return 'AAPL'; } });
   const [quote, setQuote] = useState<Quote | null>(null);
   const [quoteError, setQuoteError] = useState(false);
   const [lastSync, setLastSync] = useState('');
@@ -21,9 +24,8 @@ export function DashboardView({ settingsVersion }: { settingsVersion: number }) 
   const [favQuotes, setFavQuotes] = useState<Record<string, Quote>>({});
 
   const select = (s: string) => {
-    setSymbol(s.toUpperCase());
+    onSelect(s.toUpperCase());
     setHighlightTs(null);
-    try { localStorage.setItem(LAST_SYMBOL, s.toUpperCase()); } catch { /* stockage indisponible */ }
   };
 
   const fetchQuote = useCallback(() => {
@@ -72,7 +74,7 @@ export function DashboardView({ settingsVersion }: { settingsVersion: number }) 
     (isFav ? api.removeFavorite(symbol) : api.addFavorite(symbol, quote?.short_name ?? '')).then(setFavorites);
 
   const onAdvice = (a: Advice) => {
-    if (isFav) setFavorites((fs) => fs.map((f) => (f.symbol === a.symbol ? { ...f, advice: { verdict: a.verdict, score: a.score, generated_at: a.generated_at } } : f)));
+    if (isFav) setFavorites((fs) => fs.map((f) => (f.symbol === a.symbol ? { ...f, advice: { verdict: a.verdict, score: a.score, confidence: a.confidence, engine: a.engine, generated_at: a.generated_at } } : f)));
   };
 
   const up = (quote?.change ?? 0) >= 0;

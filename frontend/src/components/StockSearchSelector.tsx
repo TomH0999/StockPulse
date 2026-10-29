@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Search } from 'lucide-react';
-import { STOCKS_DATABASE } from '../data/stocksDatabase';
-import { api, SearchResult } from '../services/api';
+import { api, CatalogEntry, loadCatalog, SearchResult } from '../services/api';
 import { useI18n } from '../context';
 
 export function StockSearchSelector({ onSelectStock }: { onSelectStock: (symbol: string, name: string) => void }) {
@@ -11,15 +10,17 @@ export function StockSearchSelector({ onSelectStock }: { onSelectStock: (symbol:
   const [remote, setRemote] = useState<SearchResult[]>([]);
   const [searching, setSearching] = useState(false);
   const boxRef = useRef<HTMLDivElement>(null);
+  const [catalog, setCatalog] = useState<CatalogEntry[]>([]);
+  useEffect(() => { loadCatalog().then(setCatalog).catch(() => {}); }, []);
 
   const local = useMemo(() => {
     const q = term.trim().toLowerCase();
     if (!q) return [];
-    return STOCKS_DATABASE.filter((s) => s.symbol.toLowerCase().startsWith(q) || s.name.toLowerCase().includes(q))
+    return catalog.filter((s) => s.symbol.toLowerCase().startsWith(q) || s.name.toLowerCase().includes(q))
       .sort((a, b) => Number(b.symbol.toLowerCase() === q) - Number(a.symbol.toLowerCase() === q))
       .slice(0, 6)
-      .map((s) => ({ ...s, exchange: '', type: '' }));
-  }, [term]);
+      .map((s) => ({ symbol: s.symbol, name: s.name, exchange: s.country, type: '' }));
+  }, [term, catalog]);
 
   // Recherche élargie à tous les marchés via Yahoo Finance (anti-rebond 300 ms)
   useEffect(() => {
