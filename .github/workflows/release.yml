@@ -22,13 +22,13 @@ jobs:
       - name: Tests du moteur
         working-directory: backend
         run: |
-          pip install -r requirements.txt pyinstaller
-          python tests/smoke_test.py
+          pip install -r requirements.txt -r requirements-dev.txt pyinstaller
+          python -m pytest -q tests
 
       - name: Compiler le moteur Python
         working-directory: backend
         run: |
-          pyinstaller --noconfirm --onedir --name stockpulse-backend --add-data "../market_news.db;." --add-data "catalog;catalog" --collect-submodules uvicorn main.py
+          pyinstaller --noconfirm --onedir --name stockpulse-backend --add-data "../market_news.db;." --add-data "catalog;catalog" --add-data "catalog_sources;catalog_sources" --collect-submodules uvicorn main.py
 
       - uses: actions/setup-node@v4
         with:

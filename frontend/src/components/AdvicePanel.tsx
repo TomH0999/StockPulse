@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { RefreshCw, Sparkles, TrendingDown, TrendingUp, Repeat, CalendarClock, Zap } from 'lucide-react';
 import { Advice, api, errorMessage, pct } from '../services/api';
 import { useI18n, VERDICT_STYLE } from '../context';
+import { OrderModal } from './OrderModal';
 
 interface Props {
   symbol: string;
@@ -26,6 +27,9 @@ export function AdvicePanel({ symbol, onAdvice, onShowDate }: Props) {
   const [advice, setAdvice] = useState<Advice | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [order, setOrder] = useState<'buy' | 'sell' | 'reduce' | null>(null);
+  const [held, setHeld] = useState(false);
+  useEffect(() => { api.portfolio().then((p) => setHeld(p.lines.some((l) => l.symbol === symbol))).catch(() => {}); }, [symbol, order]);
 
   const load = (refresh = false) => {
     setLoading(true);
@@ -45,6 +49,7 @@ export function AdvicePanel({ symbol, onAdvice, onShowDate }: Props) {
 
   return (
     <div className="card p-5 space-y-4 h-full">
+      {order && <OrderModal symbol={symbol} side={order} onClose={() => setOrder(null)} />}
       <div className="flex justify-between items-center gap-2">
         <h2 className="font-bold flex items-center gap-2"><Sparkles className="w-4 h-4 text-sky-500" />{t.adviceTitle}</h2>
         <button className="btn" onClick={() => load(true)} disabled={loading}>
@@ -99,6 +104,26 @@ export function AdvicePanel({ symbol, onAdvice, onShowDate }: Props) {
             </div>
           )}
           <p className="text-sm leading-relaxed">{advice.summary}</p>
+
+          <div className="flex flex-wrap gap-2">
+            <button className={advice.score >= 15 ? 'btn-primary' : 'btn'} onClick={() => setOrder('buy')}>{t.prepareBuy}</button>
+            {held && <button className={advice.verdict === 'REDUCE' ? 'btn-primary' : 'btn'} onClick={() => setOrder('reduce')}>{t.prepareReduce}</button>}
+            {held && <button className={advice.verdict === 'SELL' ? 'btn-primary' : 'btn'} onClick={() => setOrder('sell')}>{t.prepareSell}</button>}
+          </div>
+
+          <div className="text-xs rounded-lg p-2 border border-slate-200 dark:border-slate-800">
+            <div className="muted mb-1">{t.fundamentals}{advice.fundamentals && ` · ${advice.fundamentals.source}`}</div>
+            {advice.fundamentals ? (
+              <div className="grid grid-cols-2 gap-x-4 gap-y-0.5">
+                {([['f_pe', advice.fundamentals.pe, ''], ['f_margin', advice.fundamentals.net_margin, ' %'], ['f_debt', advice.fundamentals.debt_to_equity, ''],
+                  ['f_roe', advice.fundamentals.roe, ' %']] as const).map(([k, v, u]) => (
+                  <span key={k}>{t[k]} : <b>{v === null ? '–' : `${v.toFixed(1)}${u}`}</b></span>
+                ))}
+                <span>{t.f_earnings} : <b>{advice.fundamentals.next_earnings ? new Date(advice.fundamentals.next_earnings).toLocaleDateString(lang) : '–'}</b></span>
+                <span>{t.f_dividend} : <b>{advice.fundamentals.next_dividend ? `${new Date(advice.fundamentals.next_dividend.date).toLocaleDateString(lang)} (${advice.fundamentals.next_dividend.amount ?? '?'})` : '–'}</b></span>
+              </div>
+            ) : <span className="muted">{t.fundNeedKey}</span>}
+          </div>
 
           <Section icon={<TrendingUp className="w-3.5 h-3.5" />} title={t.opportunities} items={advice.opportunities} tone="up" />
           <Section icon={<TrendingDown className="w-3.5 h-3.5" />} title={t.threats} items={advice.threats} tone="down" />

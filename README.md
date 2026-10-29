@@ -50,9 +50,24 @@ Une analyse consomme environ 5 000 jetons. Les quotas gratuits changent souvent 
 Les limites s'appliquent par compte : plusieurs clés d'un même compte partagent le même quota. Pour aller plus vite,
 combinez des fournisseurs différents (créer plusieurs comptes chez un même fournisseur est en général interdit par ses conditions).
 
+## Clés de données (fondamentaux, calendrier)
+
+**⚙ Paramètres → Clés de données de marché** : Financial Modeling Prep (https://site.financialmodelingprep.com/developer/docs/dashboard),
+Finnhub (https://finnhub.io/dashboard) ou Alpha Vantage (https://www.alphavantage.co/support/#api-key). Inscription gratuite, la clé
+s'affiche sur le tableau de bord du site. Les offres gratuites couvrent surtout les actions américaines.
+
+## Ordres
+
+Dans l'analyse d'une valeur : **Préparer un ordre d'achat / d'allègement / de vente**. L'application donne chaque champ à saisir
+chez votre courtier (ISIN, quantité, limite, validité, stop facultatif), puis met à jour Mon PEA quand vous confirmez l'exécution.
+
+## Tests
+
+`cd backend && pip install -r requirements-dev.txt && python -m pytest -q tests` (86 tests, sans réseau).
+
 ## Catalogue
 
-2 904 valeurs (1 814 éligibles PEA). Régénérer depuis les sources publiques : `python tools/build_catalog.py`
+2 904 valeurs (1 742 éligibles PEA selon le pays du siège), mises à jour automatiquement chaque jour par l'application. Régénérer depuis les sources publiques : `python tools/build_catalog.py`
 (cote Euronext, composants d'indices dans `tools/index_constituents.json`, grandes valeurs US, validation Yahoo).
 Ajout manuel : ajouter des entrées `{"symbol": "ORA.PA", "name": "Orange SA"}` (symboles Yahoo Finance) dans `backend/catalog/*.json`,
 ou créer un nouveau fichier par marché. Pays et éligibilité PEA sont déduits du suffixe (`.PA`, `.DE`, `.AS`…).

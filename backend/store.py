@@ -52,6 +52,10 @@ def init():
                 id INTEGER PRIMARY KEY AUTOINCREMENT, symbol TEXT, direction TEXT, price REAL, triggered_at INTEGER
             );
             CREATE TABLE IF NOT EXISTS notified (key TEXT PRIMARY KEY, at INTEGER);
+            CREATE TABLE IF NOT EXISTS orders_log (
+                id INTEGER PRIMARY KEY AUTOINCREMENT, symbol TEXT, side TEXT, quantity REAL, price REAL, fees REAL,
+                at INTEGER DEFAULT (strftime('%s','now'))
+            );
             CREATE INDEX IF NOT EXISTS idx_articles_symbol_ts ON articles(symbol, timestamp);
         ''')
         cols = [r[1] for r in conn.execute("PRAGMA table_info(articles)")]

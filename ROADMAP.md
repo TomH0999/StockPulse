@@ -27,18 +27,24 @@ Classement, liste des entreprises, analyses automatiques, pool de clés IA multi
 - [x] 1 814 valeurs éligibles PEA, 868 valeurs principales analysées automatiquement, secteurs (2 812 valeurs)
 - [x] Rendement du dividende intégré au conseil
 - [x] Générateur reproductible : `python tools/build_catalog.py`
-- [ ] PER, dette, marges : nécessite une source de fondamentaux avec clé gratuite (ex. Financial Modeling Prep)
+- [x] PER, marge, dette, ROE via clés gratuites (Financial Modeling Prep, Finnhub, Alpha Vantage) — v1.6
 
 ## ✅ v1.4 — Qualité des conseils et alertes
 - [x] Fiabilité passée : analyse rejouée chaque mois sur 5 ans, taux de réussite à 1 / 3 / 6 mois par valeur et global
 - [x] Historique quotidien des conseils
 - [x] Alertes Windows : seuils de prix, changement de conseil (favoris / PEA), baisse > 5 % d'une ligne
-- [ ] Calendrier des résultats et dividendes à venir : nécessite une source dédiée (même clé que les fondamentaux)
+- [x] Prochains résultats et dividendes (mêmes clés) — v1.6
 
 ## ✅ v1.5 — Gestion de portefeuille avancée
 - [x] Diversification par secteur et pays, alertes de concentration (ligne > 20 %, secteur > 35 %, < 5 lignes)
 - [x] Suggestions de rééquilibrage (titres à vendre, lignes à réexaminer, idées dans les secteurs absents)
 - [x] Comparaison au CAC 40 (lignes actuelles rejouées sur 1 an)
+
+## ✅ v1.6 — Ordres, catalogue vivant, fiabilité
+- [x] Générateur d'ordres (achat, allègement, vente) : champs à saisir chez le courtier, stop et objectif, frais, mise à jour de Mon PEA
+- [x] Catalogue mis à jour chaque jour (sources publiques, aucun jeton IA) : nouvelles valeurs, étiquettes « Suspendue » / « Radiée »
+- [x] Éligibilité PEA selon le pays du siège (ISIN) au lieu de la place de cotation
+- [x] 86 tests automatiques (moteur, API, sécurité, ordres, alertes, catalogue) lancés sous Windows avant chaque publication
 
 ## ⏸ En attente de vos retours avant la v2.0
 

@@ -11,3 +11,12 @@ export function VerdictBadge({ advice }: { advice: AdviceSummary | null | undefi
     </span>
   );
 }
+
+export function StatusBadge({ status, isNew }: { status?: string | null; isNew?: boolean }) {
+  const { t } = useI18n();
+  if (status) {
+    return <span className={`text-[9px] px-1 rounded font-bold ${status === 'delisted' ? 'bg-rose-600 text-white' : 'bg-amber-500/20 text-amber-600 dark:text-amber-400'}`}
+      title={status === 'delisted' ? t.st_delisted_help : undefined}>{t[`st_${status}` as 'st_suspended']}</span>;
+  }
+  return isNew ? <span className="text-[9px] px-1 rounded font-bold bg-violet-500/20 text-violet-600 dark:text-violet-400">{t.isNew}</span> : null;
+}

@@ -44,6 +44,16 @@ export function SettingsModal({ onClose, lang, setLang, dark, setDark, onSaved }
   };
 
   const auto = settings?.auto;
+  const [data, setData] = useState<Awaited<ReturnType<typeof api.dataSettings>> | null>(null);
+  const [dProvider, setDProvider] = useState('fmp');
+  const [dKey, setDKey] = useState('');
+  const [fees, setFees] = useState({ pct: '0.5', min: '1.99' });
+  useEffect(() => { api.dataSettings().then(setData).catch(() => {}); }, []);
+  const runData = (p: Promise<unknown>, done?: () => void) => {
+    setBusy(true); setStatus(null);
+    p.then(() => api.dataSettings()).then((d) => { setData(d); setStatus({ ok: true, msg: t.saved }); done?.(); })
+      .catch((e) => setStatus({ ok: false, msg: errorMessage(e) })).finally(() => setBusy(false));
+  };
 
   return (
     <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4" onClick={onClose}>
@@ -104,6 +114,36 @@ export function SettingsModal({ onClose, lang, setLang, dark, setDark, onSaved }
           </div>
           <a href={KEY_LINKS[provider]} target="_blank" rel="noreferrer" className="text-xs text-sky-600 dark:text-sky-400 hover:underline">{t.getKey} ({provider}) ↗</a>
           {status && <p className={`text-sm ${status.ok ? 'up' : 'down'}`}>{status.msg}</p>}
+        </section>
+
+        <section className="space-y-2">
+          <h3 className="font-bold">{t.dataKeysTitle}</h3>
+          <p className="text-xs muted">{t.dataKeysHelp}</p>
+          {data?.keys.map((k) => (
+            <div key={k.id} className="flex items-center gap-2 text-xs p-2 rounded-lg border border-slate-200 dark:border-slate-800">
+              <b className="w-24">{k.provider}</b><span className="font-mono flex-1">{k.hint}</span>
+              <button className="muted hover:text-rose-500 cursor-pointer" title={t.remove} onClick={() => runData(api.removeDataKey(k.id))}><Trash2 className="w-3.5 h-3.5" /></button>
+            </div>
+          ))}
+          <div className="flex gap-2 items-end">
+            <div className="w-36"><label className="label">{t.provider}</label>
+              <select className="input" value={dProvider} onChange={(e) => setDProvider(e.target.value)}>
+                {Object.keys(data?.providers ?? { fmp: '', finnhub: '', alphavantage: '' }).map((p) => <option key={p} value={p}>{p}</option>)}
+              </select></div>
+            <div className="flex-1"><label className="label">{t.apiKey}</label>
+              <input className="input font-mono" type="password" value={dKey} onChange={(e) => setDKey(e.target.value)} /></div>
+            <button className="btn-primary !py-2" disabled={busy || !dKey.trim()} onClick={() => runData(api.addDataKey(dProvider, dKey), () => setDKey(''))}>{t.addKey}</button>
+          </div>
+          {data?.providers[dProvider] && <a href={data.providers[dProvider]} target="_blank" rel="noreferrer" className="text-xs text-sky-600 dark:text-sky-400 hover:underline">{t.getKey} ({dProvider}) ↗</a>}
+        </section>
+
+        <section className="space-y-2">
+          <h3 className="font-bold">{t.feesTitle}</h3>
+          <div className="flex gap-2 items-end">
+            <div className="w-28"><label className="label">{t.feePct}</label><input className="input" inputMode="decimal" value={fees.pct} onChange={(e) => setFees({ ...fees, pct: e.target.value })} /></div>
+            <div className="w-28"><label className="label">{t.feeMin}</label><input className="input" inputMode="decimal" value={fees.min} onChange={(e) => setFees({ ...fees, min: e.target.value })} /></div>
+            <button className="btn !py-2" onClick={() => runData(api.setFees(Number(fees.pct.replace(',', '.')), Number(fees.min.replace(',', '.'))))}>{t.save}</button>
+          </div>
         </section>
 
         {auto && (

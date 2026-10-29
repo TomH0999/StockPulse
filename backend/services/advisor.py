@@ -8,7 +8,7 @@ from collections import defaultdict
 from datetime import datetime, timezone
 
 import store
-from services import ai_pool, news, yahoo
+from services import ai_pool, fundamentals, news, yahoo
 
 CACHE_SECONDS = 3600
 VERDICTS = ["SELL", "REDUCE", "HOLD", "BUY", "STRONG_BUY"]
@@ -39,6 +39,10 @@ T = {
         "cagr": "Performance annualisée de {c:+.1f} % sur {y} ans, perte maximale historique de {dd:.0f} %.",
         "topic": "Thème d'actualité : {t}.",
         "dividend": "Rendement du dividende de {y:.1f} % sur 12 mois.",
+        "pe_loss": "Entreprise déficitaire (PER négatif).", "pe_high": "Valorisation élevée : PER de {v:.0f}.",
+        "pe_low": "Valorisation modérée : PER de {v:.0f}.", "margin_high": "Forte rentabilité : marge nette de {v:.0f} %.",
+        "debt_high": "Endettement élevé : dette / capitaux propres de {v:.1f}.", "roe_high": "Rentabilité des capitaux propres de {v:.0f} %.",
+        "earnings_soon": "Résultats attendus le {d} : volatilité probable.",
         "summary": "{name} : verdict « {v} » (score {s:+d}/100). {lead}",
         "pros": "Points forts : {x}", "cons": "Points de vigilance : {x}",
         "topics": {"earnings": "résultats", "guidance": "prévisions", "analysts": "avis d'analystes", "legal": "juridique / régulation",
@@ -72,6 +76,10 @@ T = {
         "cagr": "Annualised return of {c:+.1f}% over {y} years, worst historical drawdown {dd:.0f}%.",
         "topic": "News theme: {t}.",
         "dividend": "Dividend yield of {y:.1f}% over 12 months.",
+        "pe_loss": "Loss-making company (negative P/E).", "pe_high": "Rich valuation: P/E of {v:.0f}.",
+        "pe_low": "Moderate valuation: P/E of {v:.0f}.", "margin_high": "Highly profitable: net margin of {v:.0f}%.",
+        "debt_high": "High leverage: debt/equity of {v:.1f}.", "roe_high": "Return on equity of {v:.0f}%.",
+        "earnings_soon": "Earnings due on {d}: expect volatility.",
         "summary": "{name}: “{v}” (score {s:+d}/100). {lead}",
         "pros": "Strengths: {x}", "cons": "Watch-outs: {x}", "topics": {},
         "months": ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"],
@@ -287,6 +295,25 @@ def local_advice(sym, lang, quote, hist, arts, now=None):
         if dy >= 3:
             opp.append(L["dividend"].format(y=dy))
             parts["dividend"] = min(6, dy)
+    f = quote.get("fundamentals") or {}
+    if f:
+        pe, fp = f.get("pe"), 0
+        if pe is not None:
+            if pe < 0:
+                thr.append(L["pe_loss"]); fp -= 6
+            elif pe > 40:
+                thr.append(L["pe_high"].format(v=pe)); fp -= 4
+            elif pe < 15:
+                opp.append(L["pe_low"].format(v=pe)); fp += 4
+        if (f.get("net_margin") or 0) > 15:
+            opp.append(L["margin_high"].format(v=f["net_margin"])); fp += 3
+        if (f.get("roe") or 0) > 15:
+            opp.append(L["roe_high"].format(v=f["roe"])); fp += 2
+        if (f.get("debt_to_equity") or 0) > 2:
+            thr.append(L["debt_high"].format(v=f["debt_to_equity"])); fp -= 4
+        if f.get("next_earnings") and f["next_earnings"] <= datetime.fromtimestamp(now + 14 * 86400).strftime("%Y-%m-%d"):
+            pat.append(L["earnings_soon"].format(d=f["next_earnings"]))
+        parts["fundamentals"] = fp
     if nv["count"]:
         parts["news"] = nv["score"] * 35
         if nv["score"] >= 0.08:
@@ -314,7 +341,7 @@ def local_advice(sym, lang, quote, hist, arts, now=None):
         "technicals": {k: (round(v, 2) if isinstance(v, float) else v) for k, v in tech.items()},
         "news": {k: v for k, v in nv.items() if k != "topics"},
         "events": evs[-12:][::-1], "engine": "local", "ai_error": None, "verification": None,
-        "generated_at": int(time.time()), "articles_analyzed": nv["count"],
+        "generated_at": int(time.time()), "articles_analyzed": nv["count"], "fundamentals": f or None,
     }
 
 
@@ -345,7 +372,7 @@ Answer ONLY with JSON, all text in {LANG_NAMES.get(lang, 'English')}:
 "article_sentiments" MUST contain exactly one entry for EVERY numbered article (0 to {len(arts) - 1})."""
 
 
-def advise(sym, lang="fr", force=False, use_ai=True, max_wait=60.0, backfill=True):
+def advise(sym, lang="fr", force=False, use_ai=True, max_wait=60.0, backfill=True, fetch_fundamentals=True):
     """max_wait : attente maximale d'une clé IA disponible ; backfill : constitution de l'archive 24 mois."""
     sym = sym.upper()
     want_ai = use_ai and ai_pool.has_keys()
@@ -362,6 +389,7 @@ def advise(sym, lang="fr", force=False, use_ai=True, max_wait=60.0, backfill=Tru
     hist = yahoo.daily_history(sym)
     arts = news.articles(sym)
     quote["dividend_yield"] = yahoo.dividend_yield(sym, quote.get("price"))
+    quote["fundamentals"] = fundamentals.get(sym, fetch=fetch_fundamentals)
     result = local_advice(sym, lang, quote, hist, arts)
     try:
         result["track_record"] = backtest(sym, quote, hist, arts)
@@ -422,7 +450,7 @@ def backtest(sym, quote, hist, arts, years=5) -> dict:
     for t in range(start, len(hist) - 21, 21):
         ts = hist[t]["ts"]
         past = [a for a in arts_sorted if a["timestamp"] <= ts]
-        r = local_advice(sym, "en", {**quote, "dividend_yield": None}, hist[: t + 1], past, now=ts)
+        r = local_advice(sym, "en", {**quote, "dividend_yield": None, "fundamentals": None}, hist[: t + 1], past, now=ts)
         for h, d in HORIZONS.items():
             if t + d < len(hist):
                 ret = (hist[t + d]["close"] / hist[t]["close"] - 1) * 100
@@ -456,7 +484,8 @@ _NUM = re.compile(r"([-+−]?\d+(?:[.,]\d+)?)\s*(%|€|\$|USD|EUR)")
 def _known_values(result, quote) -> list[float]:
     """Toutes les valeurs réellement calculées, auxquelles les chiffres cités par l'IA doivent correspondre."""
     vals = [v for v in result["technicals"].values() if isinstance(v, (int, float)) and not isinstance(v, bool)]
-    vals += [quote.get(k) or 0 for k in ("price", "change_percent", "year_high", "year_low", "day_high", "day_low")]
+    vals += [quote.get(k) or 0 for k in ("price", "change_percent", "year_high", "year_low", "day_high", "day_low", "dividend_yield")]
+    vals += [v for v in (result.get("fundamentals") or {}).values() if isinstance(v, (int, float))]
     for e in result["events"]:
         vals += [e["change"], e["after_20d"] or 0]
     for line in result["patterns"] + result["opportunities"] + result["threats"]:

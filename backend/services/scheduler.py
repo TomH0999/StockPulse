@@ -52,7 +52,7 @@ def _local_loop():
         try:
             if settings()["enabled"]:
                 for s in _queue(ai=False)[:20]:
-                    advisor.advise(s, _lang(), force=True, use_ai=False, backfill=s in _favorites())
+                    advisor.advise(s, _lang(), force=True, use_ai=False, backfill=s in _favorites(), fetch_fundamentals=s in _favorites())
                     status["local_done"] += 1
                     time.sleep(1)
         except Exception as e:
@@ -63,7 +63,7 @@ def _local_loop():
 def _ai_one(sym: str) -> bool:
     status["ai_running"] += 1
     try:
-        r = advisor.advise(sym, _lang(), force=True, use_ai=True, max_wait=0, backfill=False)
+        r = advisor.advise(sym, _lang(), force=True, use_ai=True, max_wait=0, backfill=False, fetch_fundamentals=False)
         if r["engine"] != "local":
             status["ai_done"] += 1
             return True
@@ -97,8 +97,20 @@ def _snapshot_loop():
         time.sleep(screener.REFRESH_SECONDS)
 
 
+def _catalog_loop():
+    """Mise à jour quotidienne du catalogue (sources publiques, aucun jeton IA)."""
+    time.sleep(120)
+    while True:
+        try:
+            if catalog.needs_update():
+                status["catalog"] = catalog.refresh_from_sources()
+        except Exception as e:
+            status["last_error"] = f"Catalogue : {str(e)[:150]}"
+        time.sleep(3600)
+
+
 def start():
-    for target in (_snapshot_loop, _local_loop, _ai_loop):
+    for target in (_snapshot_loop, _local_loop, _ai_loop, _catalog_loop):
         threading.Thread(target=target, daemon=True).start()
 
 

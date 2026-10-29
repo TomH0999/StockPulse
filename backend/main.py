@@ -11,11 +11,12 @@ from fastapi.staticfiles import StaticFiles
 
 import catalog
 import store
-from services import advisor, ai_pool, alerts, health, news, portfolio, scheduler, screener, yahoo
+from services import advisor, ai_pool, alerts, fundamentals, health, news, orders, portfolio, scheduler, screener, yahoo
 
 store.init()
 threading.Thread(target=news.migrate, daemon=True).start()
-scheduler.start()
+if not os.environ.get("STOCKPULSE_NO_SCHEDULER"):
+    scheduler.start()
 
 app = FastAPI(title="StockPulse Backend", version="1.0.0")
 # API réservée à l'application : seule l'interface de développement Vite peut l'appeler depuis une autre origine,
@@ -219,6 +220,63 @@ def set_account(deposits: float = Body(...), cash: float = Body(...)):
     except ValueError as e:
         raise HTTPException(400, str(e))
     return portfolio.summary()
+
+
+@app.get("/api/orders/plan")
+def order_plan(symbol: str, side: str, amount: float | None = None):
+    try:
+        return orders.plan(symbol, side, amount)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    except yahoo.YahooError as e:
+        raise HTTPException(404, str(e))
+
+
+@app.post("/api/orders/execute")
+def order_execute(symbol: str = Body(...), side: str = Body(...), quantity: float = Body(...), price: float = Body(...), fees: float = Body(0)):
+    try:
+        return orders.execute(symbol, side, quantity, price, fees)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+
+
+@app.get("/api/orders")
+def order_journal():
+    return orders.journal()
+
+
+@app.put("/api/orders/fees")
+def order_fees(pct: float = Body(...), minimum: float = Body(...)):
+    try:
+        orders.set_fees(pct, minimum)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    return orders.fees_settings()
+
+
+@app.get("/api/fundamentals/{symbol}")
+def get_fundamentals(symbol: str):
+    return fundamentals.get(symbol) or {}
+
+
+@app.get("/api/settings/data")
+def get_data_keys():
+    return {"providers": fundamentals.PROVIDERS, "keys": fundamentals.public_keys(), "catalog_updated": catalog.last_update()}
+
+
+@app.post("/api/settings/data/keys")
+def add_data_key(provider: str = Body(...), key: str = Body(...)):
+    try:
+        fundamentals.add_key(provider, key)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    return get_data_keys()
+
+
+@app.delete("/api/settings/data/keys/{key_id}")
+def remove_data_key(key_id: str):
+    fundamentals.remove_key(key_id)
+    return get_data_keys()
 
 
 @app.get("/api/settings/ai")

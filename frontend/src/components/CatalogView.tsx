@@ -4,7 +4,7 @@ import { api, pct, ScreenerRow } from '../services/api';
 import { useI18n, VERDICT_LABEL } from '../context';
 import { useScreener } from '../hooks/useScreener';
 import { Sparkline } from './Sparkline';
-import { VerdictBadge } from './VerdictBadge';
+import { StatusBadge, VerdictBadge } from './VerdictBadge';
 import { applyFilters, Filters, MarketFilters } from './MarketFilters';
 
 type Col = 'name' | 'price' | 'chg_1d' | 'chg_1m' | 'chg_ytd' | 'chg_1y' | 'volatility' | 'from_high' | 'score';
@@ -89,6 +89,7 @@ export function CatalogView({ onOpen }: { onOpen: (symbol: string) => void }) {
                       <div className="flex items-center gap-2">
                         <span className="font-mono font-bold">{r.symbol}</span>
                         {r.pea && <span className="text-[9px] px-1 rounded bg-sky-500/15 text-sky-600 dark:text-sky-400 font-bold">PEA</span>}
+                        <StatusBadge status={r.status} isNew={r.new} />
                         <span className="text-[10px] muted">{r.country}{r.sector && ` · ${r.sector}`}</span>
                       </div>
                       <div className="text-xs muted truncate max-w-[260px]">{r.name}</div>

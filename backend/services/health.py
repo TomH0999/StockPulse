@@ -102,7 +102,16 @@ def _version():
     return "ok", f"À jour ({APP_VERSION})"
 
 
-CHECKS = {"quotes": _quotes, "snapshot": _snapshot, "news": _news, "ai": _ai, "database": _database,
+def _catalog():
+    last = catalog.last_update()
+    flagged = sum(1 for e in catalog.entries() if e["status"])
+    if not last:
+        return "ok", f"{len(catalog.entries())} valeurs (première mise à jour en attente)"
+    age = (time.time() - last) / 86400
+    return ("warn" if age > 3 else "ok"), f"{len(catalog.entries())} valeurs, mis à jour il y a {age:.1f} j, {flagged} suspendues / radiées"
+
+
+CHECKS = {"catalog": _catalog, "quotes": _quotes, "snapshot": _snapshot, "news": _news, "ai": _ai, "database": _database,
           "freshness": _freshness, "verification": _verification, "version": _version}
 
 

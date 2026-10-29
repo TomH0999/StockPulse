@@ -42,7 +42,7 @@ export function LeaderboardView({ onOpen }: { onOpen: (symbol: string) => void }
   const [filters, setFilters] = useState<Filters>({ pea: false, country: '' });
 
   const boards = useMemo(() => {
-    const base = applyFilters(rows, filters).filter((r) => r.price);
+    const base = applyFilters(rows, filters).filter((r) => r.price && !r.status);
     return BOARDS.map((b) => {
       const list = base.filter((r) => (!b.filter || b.filter(r)) && b.value(r, period) !== null && b.value(r, period) !== undefined)
         .sort((x, y) => ((b.value(x, period) as number) - (b.value(y, period) as number)) * (b.desc ? -1 : 1))
