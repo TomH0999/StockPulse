@@ -6,5 +6,5 @@
     "strict": true,
     "skipLibCheck": true
   },
-  "include": ["main.ts", "preload.ts"]
+  "include": ["main.ts"]
 }

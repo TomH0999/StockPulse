@@ -156,3 +156,11 @@ vite.config.ts.timestamp-*
 Thumbs.db
 .vscode/
 .idea/
+
+# Rapports PDF generes
+backend/reports/
+frontend/dist-electron/
+frontend/release/
+backend/build/
+backend/dist/
+*.spec

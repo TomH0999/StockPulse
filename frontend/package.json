@@ -6,8 +6,8 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
-    "electron:dev": "concurrently \"npm run dev\" \"wait-on http://localhost:5173 && tsc -p electron/tsconfig.json && electron .\"",
-    "electron:build": "npm run build && tsc -p electron/tsconfig.json && electron-builder --win"
+    "electron:dev": "concurrently \"npm run dev\" \"wait-on http://127.0.0.1:5173 && tsc -p electron/tsconfig.json && electron .\"",
+    "electron:build": "npm run build && tsc -p electron/tsconfig.json && electron-builder --win --publish never"
   },
   "dependencies": {
     "axios": "^1.6.8",
@@ -31,5 +31,7 @@
     "typescript": "^5.2.2",
     "vite": "^5.1.6",
     "wait-on": "^7.2.0"
-  }
+  },
+  "description": "StockPulse - centrale bourse & actualités",
+  "author": "TomH0999"
 }
