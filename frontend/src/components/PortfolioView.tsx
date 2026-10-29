@@ -4,6 +4,7 @@ import { api, errorMessage, money, pct, Portfolio, PortfolioLine } from '../serv
 import { useI18n } from '../context';
 import { StockSearchSelector } from './StockSearchSelector';
 import { VerdictBadge } from './VerdictBadge';
+import { PortfolioAnalysisPanel } from './PortfolioAnalysisPanel';
 
 export function usePortfolio() {
   const [data, setData] = useState<Portfolio | null>(null);
@@ -36,13 +37,14 @@ export function PortfolioView({ onOpen }: { onOpen: (symbol: string) => void }) 
   const [form, setForm] = useState<{ id?: number; symbol: string; quantity: string; price: string }>({ symbol: '', quantity: '', price: '' });
   const [account, setAccount] = useState<{ deposits: string; cash: string } | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [version, setVersion] = useState(0);
 
   useEffect(() => {
     if (data && !account) setAccount({ deposits: String(data.deposits || ''), cash: String(data.cash || '') });
   }, [data, account]);
 
   const run = (p: Promise<Portfolio>, after?: () => void) =>
-    p.then((d) => { setData(d); setError(null); after?.(); }).catch((e) => setError(errorMessage(e)));
+    p.then((d) => { setData(d); setError(null); setVersion((v) => v + 1); after?.(); }).catch((e) => setError(errorMessage(e)));
 
   const submit = () => {
     const q = Number(form.quantity.replace(',', '.')), pr = Number(form.price.replace(',', '.'));
@@ -104,6 +106,8 @@ export function PortfolioView({ onOpen }: { onOpen: (symbol: string) => void }) 
           </tbody>
         </table>
       </div>
+
+      <PortfolioAnalysisPanel version={version} onOpen={onOpen} />
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <div className="card p-4 space-y-3 lg:col-span-2">

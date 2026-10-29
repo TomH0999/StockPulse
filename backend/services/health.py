@@ -37,10 +37,10 @@ def _snapshot():
     total = len(catalog.symbols())
     missing = [s for s in catalog.symbols() if not (snap.get(s) or {}).get("price")]
     age = (time.time() - updated) / 60
-    if len(missing) > total * 0.1:
+    if len(missing) > total * 0.2:
         return "error", f"{len(missing)}/{total} entreprises sans cours"
     if missing:
-        return "warn", f"Sans cours : {', '.join(missing[:8])}"
+        return ("warn" if len(missing) > total * 0.05 else "ok"), f"{total - len(missing)}/{total} cotations à jour (sans cours : {', '.join(missing[:5])}…)"
     return "ok", f"{total} entreprises, mis à jour il y a {age:.0f} min"
 
 
@@ -74,7 +74,7 @@ def _database():
 
 def _freshness():
     cache = advisor.cached_verdicts()
-    syms = catalog.symbols()
+    syms = catalog.core_symbols() or catalog.symbols()
     fresh = sum(1 for s in syms if s in cache and time.time() - cache[s]["generated_at"] < 86400)
     ratio = fresh / len(syms)
     return ("ok" if ratio > 0.8 else "warn"), f"{fresh}/{len(syms)} analyses de moins de 24 h"

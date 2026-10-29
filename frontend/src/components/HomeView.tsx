@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Activity, Bell, Briefcase, Flame, Sparkles, Star } from 'lucide-react';
-import { api, Favorite, HealthReport, money, pct, ScreenerRow } from '../services/api';
+import { Activity, Bell, Briefcase, Flame, Gauge, Sparkles, Star } from 'lucide-react';
+import { AlertEvent, api, Favorite, HealthReport, money, pct, ScreenerRow } from '../services/api';
+import { fill } from '../i18n';
 import { useI18n } from '../context';
 import { useScreener } from '../hooks/useScreener';
 import { HealthList } from './HealthPanel';
@@ -41,7 +42,13 @@ export function HomeView({ health, onRecheck, checking, onOpen, onNavigate }: Pr
   const { rows } = useScreener();
   const [pf] = usePortfolio();
   const [favorites, setFavorites] = useState<Favorite[]>([]);
-  useEffect(() => { api.favorites().then(setFavorites).catch(() => {}); }, []);
+  const [events, setEvents] = useState<AlertEvent[]>([]);
+  const [reliability, setReliability] = useState<Record<string, { symbols: number; n: number; hit_rate: number | null }>>({});
+  useEffect(() => {
+    api.favorites().then(setFavorites).catch(() => {});
+    api.alerts().then((a) => setEvents(a.events)).catch(() => {});
+    api.trackRecord().then(setReliability).catch(() => {});
+  }, []);
 
   const pea = useMemo(() => rows.filter((r) => r.pea && r.price), [rows]);
   const opportunities = useMemo(() => pea.filter((r) => (r.advice?.score ?? 0) >= 15)
@@ -69,7 +76,12 @@ export function HomeView({ health, onRecheck, checking, onOpen, onNavigate }: Pr
       </Panel>
 
       <Panel icon={<Bell className="w-4 h-4 text-amber-500" />} title={t.homeAlerts}>
-        {!alerts.length ? <p className="text-sm muted">{t.noAlerts}</p> : (
+        {events.map((e) => (
+          <p key={e.key} className="text-sm cursor-pointer text-amber-600 dark:text-amber-400" onClick={() => onOpen(e.symbol)}>
+            🔔 {fill(t[`ev_${e.type}` as 'ev_price'], e)}
+          </p>
+        ))}
+        {!alerts.length && !events.length ? <p className="text-sm muted">{t.noAlerts}</p> : (
           <ul className="space-y-2">
             {alerts.map((l) => (
               <li key={l.id} className="flex items-center gap-2 cursor-pointer" onClick={() => onOpen(l.symbol)}>
@@ -91,6 +103,21 @@ export function HomeView({ health, onRecheck, checking, onOpen, onNavigate }: Pr
 
       <Panel icon={<Flame className="w-4 h-4 text-rose-500" />} title={t.homeMovers} action={seeAll('leaderboard')}>
         {movers.map((r) => <Row key={r.symbol} r={r} onOpen={onOpen} value={<span className={up(r.chg_1d ?? 0)}>{pct(r.chg_1d)}</span>} />)}
+      </Panel>
+
+      <Panel icon={<Gauge className="w-4 h-4 text-violet-500" />} title={t.globalReliability}>
+        <p className="text-xs muted">{t.trackRecord}</p>
+        <div className="grid grid-cols-3 gap-2 text-center">
+          {(['1m', '3m', '6m'] as const).map((h) => {
+            const r = reliability[h];
+            return (
+              <div key={h}>
+                <div className={`text-2xl font-bold ${!r?.hit_rate ? 'muted' : r.hit_rate >= 55 ? 'up' : r.hit_rate < 45 ? 'down' : ''}`}>{r?.hit_rate ?? '–'} %</div>
+                <div className="text-xs muted">{h === '6m' ? '6 m' : t[`p_${h}` as 'p_1m']} · {r?.symbols ?? 0} val.</div>
+              </div>
+            );
+          })}
+        </div>
       </Panel>
 
       <Panel icon={<Star className="w-4 h-4 text-amber-400" />} title={t.favorites}>

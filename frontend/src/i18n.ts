@@ -175,6 +175,33 @@ const en = {
   homeAlerts: 'Alerts on my PEA',
   noAlerts: 'No alert.',
   seeAll: 'See all →',
+  trackRecord: 'Past reliability (advice replayed over 5 years)',
+  trHit: 'right',
+  trAfterBuy: 'avg after “buy”',
+  trLow: 'Low reliability: treat this advice with caution.',
+  priceAlert: 'Price alert',
+  above: 'Above',
+  below: 'Below',
+  add: 'Add',
+  myAlerts: 'My price alerts',
+  triggered: 'triggered',
+  ev_price: '{symbol} crossed {threshold}',
+  ev_drop: '{symbol} down {change}% today',
+  ev_verdict: '{symbol}: advice changed',
+  diversification: 'Diversification',
+  bySector: 'By sector',
+  byCountry: 'By country',
+  w_few_lines: 'Only {n} lines: spread the risk over at least 5.',
+  w_line_heavy: '{symbol} weighs {weight}% (> 20%).',
+  w_sector_heavy: 'Sector {sector} weighs {weight}% (> 35%).',
+  a_trim: 'Sell about {shares} {symbol} shares to bring it back to {target}%.',
+  a_review: 'Review {symbol}: current advice is negative.',
+  a_add: 'Idea: {symbol} ({sector}, score +{score}) to diversify.',
+  rebalance: 'Rebalancing suggestions',
+  benchmark: 'My portfolio vs CAC 40 (current lines replayed)',
+  sector: 'Sector',
+  allSectors: 'All sectors',
+  globalReliability: 'Advice reliability',
 };
 
 type Dict = typeof en;
@@ -354,6 +381,33 @@ const fr: Dict = {
   homeAlerts: 'Alertes sur mon PEA',
   noAlerts: 'Aucune alerte.',
   seeAll: 'Tout voir →',
+  trackRecord: 'Fiabilité passée (conseil rejoué sur 5 ans)',
+  trHit: 'justes',
+  trAfterBuy: 'moy. après « achat »',
+  trLow: 'Fiabilité faible : prenez ce conseil avec prudence.',
+  priceAlert: 'Alerte de prix',
+  above: 'Au-dessus de',
+  below: 'En dessous de',
+  add: 'Ajouter',
+  myAlerts: 'Mes alertes de prix',
+  triggered: 'déclenchée',
+  ev_price: '{symbol} a franchi {threshold}',
+  ev_drop: "{symbol} recule de {change} % aujourd'hui",
+  ev_verdict: '{symbol} : le conseil a changé',
+  diversification: 'Diversification',
+  bySector: 'Par secteur',
+  byCountry: 'Par pays',
+  w_few_lines: 'Seulement {n} lignes : répartissez le risque sur au moins 5.',
+  w_line_heavy: '{symbol} pèse {weight} % (> 20 %).',
+  w_sector_heavy: 'Le secteur {sector} pèse {weight} % (> 35 %).',
+  a_trim: 'Vendre environ {shares} titres {symbol} pour revenir à {target} %.',
+  a_review: 'Réexaminer {symbol} : le conseil actuel est négatif.',
+  a_add: 'Idée : {symbol} ({sector}, score +{score}) pour diversifier.',
+  rebalance: 'Suggestions de rééquilibrage',
+  benchmark: 'Mon portefeuille vs CAC 40 (lignes actuelles rejouées)',
+  sector: 'Secteur',
+  allSectors: 'Tous les secteurs',
+  globalReliability: 'Fiabilité des conseils',
 };
 
 const es: Dict = {
@@ -481,3 +535,6 @@ const zh: Dict = {
 
 export const translations: Record<Lang, Dict> = { en, fr, es, zh };
 export type T = Dict;
+
+/** Remplace les {clés} d'un texte traduit par les valeurs fournies. */
+export const fill = (text: string, values: Record<string, unknown>) => text.replace(/\{(\w+)\}/g, (_, k) => String(values[k] ?? ''));

@@ -45,6 +45,13 @@ def init():
                 id INTEGER PRIMARY KEY AUTOINCREMENT, symbol TEXT NOT NULL, quantity REAL NOT NULL,
                 avg_price REAL NOT NULL, added_at INTEGER DEFAULT (strftime('%s','now'))
             );
+            CREATE TABLE IF NOT EXISTS advice_history (
+                symbol TEXT, day TEXT, verdict TEXT, score INTEGER, price REAL, engine TEXT, PRIMARY KEY (symbol, day)
+            );
+            CREATE TABLE IF NOT EXISTS price_alerts (
+                id INTEGER PRIMARY KEY AUTOINCREMENT, symbol TEXT, direction TEXT, price REAL, triggered_at INTEGER
+            );
+            CREATE TABLE IF NOT EXISTS notified (key TEXT PRIMARY KEY, at INTEGER);
             CREATE INDEX IF NOT EXISTS idx_articles_symbol_ts ON articles(symbol, timestamp);
         ''')
         cols = [r[1] for r in conn.execute("PRAGMA table_info(articles)")]

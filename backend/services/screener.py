@@ -8,7 +8,7 @@ from datetime import datetime, timezone
 import catalog
 from services.yahoo import _session
 
-REFRESH_SECONDS = 600
+REFRESH_SECONDS = 900
 _lock = threading.Lock()
 _snapshot: dict[str, dict] = {}
 _updated = 0.0
@@ -61,7 +61,7 @@ def refresh():
     syms = catalog.symbols()
     batches = [syms[i:i + 20] for i in range(0, len(syms), 20)]
     rows = {}
-    with ThreadPoolExecutor(max_workers=4) as pool:
+    with ThreadPoolExecutor(max_workers=6) as pool:
         for fut in [pool.submit(_batch, b) for b in batches]:
             try:
                 rows.update({r["symbol"]: r for r in fut.result()})

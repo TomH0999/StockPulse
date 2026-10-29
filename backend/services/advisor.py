@@ -38,6 +38,7 @@ T = {
         "season": "Historiquement, {month} est positif {p:.0f} % des années ({m:+.1f} % en moyenne).",
         "cagr": "Performance annualisée de {c:+.1f} % sur {y} ans, perte maximale historique de {dd:.0f} %.",
         "topic": "Thème d'actualité : {t}.",
+        "dividend": "Rendement du dividende de {y:.1f} % sur 12 mois.",
         "summary": "{name} : verdict « {v} » (score {s:+d}/100). {lead}",
         "pros": "Points forts : {x}", "cons": "Points de vigilance : {x}",
         "topics": {"earnings": "résultats", "guidance": "prévisions", "analysts": "avis d'analystes", "legal": "juridique / régulation",
@@ -70,6 +71,7 @@ T = {
         "season": "Historically, {month} is positive {p:.0f}% of years ({m:+.1f}% on average).",
         "cagr": "Annualised return of {c:+.1f}% over {y} years, worst historical drawdown {dd:.0f}%.",
         "topic": "News theme: {t}.",
+        "dividend": "Dividend yield of {y:.1f}% over 12 months.",
         "summary": "{name}: “{v}” (score {s:+d}/100). {lead}",
         "pros": "Strengths: {x}", "cons": "Watch-outs: {x}", "topics": {},
         "months": ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"],
@@ -176,8 +178,8 @@ def seasonality(hist):
     return monthly
 
 
-def news_view(arts):
-    now = time.time()
+def news_view(arts, now=None):
+    now = now or time.time()
     recent = [a for a in arts if a["timestamp"] >= now - 30 * 86400]
     before = [a for a in arts if now - 60 * 86400 <= a["timestamp"] < now - 30 * 86400]
     wsum = wtot = 0.0
@@ -207,11 +209,12 @@ def _article_score(a):
     return a["sentiment_score"] or 0.0
 
 
-def local_advice(sym, lang, quote, hist, arts):
+def local_advice(sym, lang, quote, hist, arts, now=None):
+    now = now or time.time()
     L = T.get(lang, T["en"])
     tech = technicals(hist)
     evs, ev_stats = events(hist, arts)
-    nv = news_view(arts)
+    nv = news_view(arts, now)
     opp, thr, pat = [], [], []
     parts = {}
 
@@ -262,7 +265,7 @@ def local_advice(sym, lang, quote, hist, arts):
             else:
                 key, p = ("jump_cont", p_up) if p_up >= 50 else ("jump_fade", 100 - p_up)
             pat.append(L[key].format(n=len(vals), p=p, m=m))
-            recent = [e for e in evs if e["kind"] == kind and e["ts"] >= time.time() - 15 * 86400]
+            recent = [e for e in evs if e["kind"] == kind and e["ts"] >= now - 15 * 86400]
             if recent:
                 e = recent[-1]
                 pat.append(L["recent_" + kind].format(r=e["change"], d=e["date"]))
@@ -270,7 +273,7 @@ def local_advice(sym, lang, quote, hist, arts):
                 (opp if m > 0 else thr).append(pat[-2])
 
     months = seasonality(hist)
-    cur = datetime.now().month
+    cur = datetime.fromtimestamp(now).month
     if len(months.get(cur, [])) >= 5:
         vals = months[cur]
         p = sum(v > 0 for v in vals) / len(vals) * 100
@@ -278,6 +281,12 @@ def local_advice(sym, lang, quote, hist, arts):
         if p >= 65 or p <= 35:
             parts["season"] = 4 if p >= 65 else -4
 
+    dy = quote.get("dividend_yield")
+    if dy:
+        tech["dividend_yield"] = dy
+        if dy >= 3:
+            opp.append(L["dividend"].format(y=dy))
+            parts["dividend"] = min(6, dy)
     if nv["count"]:
         parts["news"] = nv["score"] * 35
         if nv["score"] >= 0.08:
@@ -352,7 +361,13 @@ def advise(sym, lang="fr", force=False, use_ai=True, max_wait=60.0, backfill=Tru
     news.refresh(sym, quote.get("name", ""), backfill=backfill)
     hist = yahoo.daily_history(sym)
     arts = news.articles(sym)
+    quote["dividend_yield"] = yahoo.dividend_yield(sym, quote.get("price"))
     result = local_advice(sym, lang, quote, hist, arts)
+    try:
+        result["track_record"] = backtest(sym, quote, hist, arts)
+    except Exception as e:
+        result["track_record"] = None
+        print(f"Backtest {sym}: {e}")
 
     if want_ai:
         recent = arts[:50]
@@ -381,10 +396,58 @@ def advise(sym, lang="fr", force=False, use_ai=True, max_wait=60.0, backfill=Tru
         except Exception as e:
             result["ai_error"] = str(e)[:300]
 
+    _log_history(result, quote.get("price"))
     with store.connect() as conn:
         conn.execute("INSERT OR REPLACE INTO advice_cache (symbol, lang, created_at, payload) VALUES (?, ?, ?, ?)",
                      (sym, lang, int(time.time()), json.dumps(result, ensure_ascii=False)))
     return result
+
+
+HORIZONS = {"1m": 21, "3m": 63, "6m": 126}
+
+
+def _hit(verdict, ret):
+    if verdict in ("BUY", "STRONG_BUY"):
+        return ret > 0
+    if verdict in ("SELL", "REDUCE"):
+        return ret < 0
+    return abs(ret) < 10
+
+
+def backtest(sym, quote, hist, arts, years=5) -> dict:
+    """Rejoue l'analyse locale chaque mois sur le passé et mesure si le verdict s'est révélé juste ensuite."""
+    out = {h: {"n": 0, "hits": 0, "buy_returns": [], "sell_returns": []} for h in HORIZONS}
+    start = max(260, len(hist) - years * 252)
+    arts_sorted = sorted(arts, key=lambda a: a["timestamp"])
+    for t in range(start, len(hist) - 21, 21):
+        ts = hist[t]["ts"]
+        past = [a for a in arts_sorted if a["timestamp"] <= ts]
+        r = local_advice(sym, "en", {**quote, "dividend_yield": None}, hist[: t + 1], past, now=ts)
+        for h, d in HORIZONS.items():
+            if t + d < len(hist):
+                ret = (hist[t + d]["close"] / hist[t]["close"] - 1) * 100
+                o = out[h]
+                o["n"] += 1
+                o["hits"] += _hit(r["verdict"], ret)
+                if r["verdict"] in ("BUY", "STRONG_BUY"):
+                    o["buy_returns"].append(ret)
+                elif r["verdict"] in ("SELL", "REDUCE"):
+                    o["sell_returns"].append(ret)
+    return {h: {"n": o["n"], "hit_rate": round(o["hits"] / o["n"] * 100) if o["n"] else None,
+                "avg_after_buy": round(statistics.mean(o["buy_returns"]), 2) if o["buy_returns"] else None,
+                "avg_after_sell": round(statistics.mean(o["sell_returns"]), 2) if o["sell_returns"] else None}
+            for h, o in out.items()}
+
+
+def _log_history(result, price):
+    with store.connect() as conn:
+        conn.execute("INSERT OR REPLACE INTO advice_history (symbol, day, verdict, score, price, engine) VALUES (?, date('now'), ?, ?, ?, ?)",
+                     (result["symbol"], result["verdict"], result["score"], price, result["engine"]))
+
+
+def history_log(sym) -> list[dict]:
+    with store.connect() as conn:
+        return [dict(r) for r in conn.execute("SELECT day, verdict, score, price, engine FROM advice_history WHERE symbol = ? ORDER BY day DESC LIMIT 60", (sym,))]
 
 
 _NUM = re.compile(r"([-+−]?\d+(?:[.,]\d+)?)\s*(%|€|\$|USD|EUR)")

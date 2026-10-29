@@ -73,6 +73,7 @@ export interface Advice {
   events: PriceEvent[];
   engine: string;
   ai_error: string | null;
+  track_record: Record<'1m' | '3m' | '6m', { n: number; hit_rate: number | null; avg_after_buy: number | null; avg_after_sell: number | null }> | null;
   verification: { status: 'verified' | 'warning'; checked: number; unverified: string[]; notes: string[]; local_score: number } | null;
   generated_at: number;
   articles_analyzed: number;
@@ -182,6 +183,18 @@ export interface Portfolio {
   performance: number | null;
 }
 
+export interface PriceAlert { id: number; symbol: string; direction: 'above' | 'below'; price: number; triggered_at: number | null }
+export interface AlertEvent { key: string; type: 'price' | 'drop' | 'verdict'; symbol: string; [k: string]: unknown }
+export interface PortfolioAnalysis {
+  diversification: {
+    sectors: Record<string, number>;
+    countries: Record<string, number>;
+    warnings: { code: string; [k: string]: unknown }[];
+    actions: { code: string; symbol: string; [k: string]: unknown }[];
+  };
+  benchmark: { index: string; series: { day: string; portfolio: number; index: number }[] };
+}
+
 export interface SearchResult {
   symbol: string;
   name: string;
@@ -208,6 +221,11 @@ export const api = {
   catalog: () => get<CatalogEntry[]>('/catalog'),
   health: (refresh = false) => get<HealthReport>('/health/full', { refresh }),
   portfolio: () => get<Portfolio>('/portfolio'),
+  portfolioAnalysis: (period = '1y') => get<PortfolioAnalysis>('/portfolio/analysis', { period }),
+  trackRecord: () => get<Record<string, { symbols: number; n: number; hit_rate: number | null }>>('/track-record'),
+  alerts: () => get<{ price_alerts: PriceAlert[]; events: AlertEvent[] }>('/alerts'),
+  addAlert: async (symbol: string, direction: string, price: number) => (await apiClient.post<PriceAlert[]>('/alerts', { symbol, direction, price })).data,
+  removeAlert: async (id: number) => (await apiClient.delete<PriceAlert[]>(`/alerts/${id}`)).data,
   addLine: async (symbol: string, quantity: number, avg_price: number) => (await apiClient.post<Portfolio>('/portfolio/lines', { symbol, quantity, avg_price })).data,
   editLine: async (id: number, symbol: string, quantity: number, avg_price: number) => (await apiClient.put<Portfolio>(`/portfolio/lines/${id}`, { symbol, quantity, avg_price })).data,
   deleteLine: async (id: number) => (await apiClient.delete<Portfolio>(`/portfolio/lines/${id}`)).data,

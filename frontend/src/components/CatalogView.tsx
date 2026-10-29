@@ -1,4 +1,4 @@
-import { Fragment, useMemo, useState } from 'react';
+import { Fragment, useEffect, useMemo, useState } from 'react';
 import { Building2, Search, Star } from 'lucide-react';
 import { api, pct, ScreenerRow } from '../services/api';
 import { useI18n, VERDICT_LABEL } from '../context';
@@ -20,6 +20,8 @@ export function CatalogView({ onOpen }: { onOpen: (symbol: string) => void }) {
   const [sort, setSort] = useState<{ col: Col; desc: boolean }>({ col: 'name', desc: false });
   const [open, setOpen] = useState<string | null>(null);
   const [added, setAdded] = useState<Set<string>>(new Set());
+  const [page, setPage] = useState(1);
+  const PAGE = 100;
 
   const label: Record<Col, string> = {
     name: t.col_name, price: t.col_price, chg_1d: t.p_1d, chg_1m: t.p_1m, chg_ytd: t.p_ytd, chg_1y: t.p_1y,
@@ -39,6 +41,9 @@ export function CatalogView({ onOpen }: { onOpen: (symbol: string) => void }) {
       });
   }, [rows, query, filters, verdict, sort]);
 
+  const pages = Math.max(1, Math.ceil(list.length / PAGE));
+  const current = Math.min(page, pages);
+  useEffect(() => setPage(1), [query, filters, verdict, sort]);
   const toggleSort = (col: Col) => setSort((s) => ({ col, desc: s.col === col ? !s.desc : col !== 'name' }));
   const addFav = (r: ScreenerRow) => api.addFavorite(r.symbol, r.name).then(() => setAdded((s) => new Set(s).add(r.symbol)));
 
@@ -76,7 +81,7 @@ export function CatalogView({ onOpen }: { onOpen: (symbol: string) => void }) {
               </tr>
             </thead>
             <tbody>
-              {list.map((r) => (
+              {list.slice((current - 1) * PAGE, current * PAGE).map((r) => (
                 <Fragment key={r.symbol}>
                   <tr onClick={() => setOpen(open === r.symbol ? null : r.symbol)}
                     className={`border-b border-slate-100 dark:border-slate-800/60 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/40 ${open === r.symbol ? 'bg-sky-500/5' : ''}`}>
@@ -84,7 +89,7 @@ export function CatalogView({ onOpen }: { onOpen: (symbol: string) => void }) {
                       <div className="flex items-center gap-2">
                         <span className="font-mono font-bold">{r.symbol}</span>
                         {r.pea && <span className="text-[9px] px-1 rounded bg-sky-500/15 text-sky-600 dark:text-sky-400 font-bold">PEA</span>}
-                        <span className="text-[10px] muted">{r.country}</span>
+                        <span className="text-[10px] muted">{r.country}{r.sector && ` · ${r.sector}`}</span>
                       </div>
                       <div className="text-xs muted truncate max-w-[260px]">{r.name}</div>
                     </td>
@@ -127,6 +132,13 @@ export function CatalogView({ onOpen }: { onOpen: (symbol: string) => void }) {
               ))}
             </tbody>
           </table>
+        )}
+        {pages > 1 && (
+          <div className="flex justify-between items-center text-sm p-3">
+            <button className="btn" disabled={current <= 1} onClick={() => setPage(current - 1)}>{t.prev}</button>
+            <span className="muted">{t.page} {current} / {pages}</span>
+            <button className="btn" disabled={current >= pages} onClick={() => setPage(current + 1)}>{t.next}</button>
+          </div>
         )}
       </div>
     </div>

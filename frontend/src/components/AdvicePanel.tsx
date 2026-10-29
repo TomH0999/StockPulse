@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { RefreshCw, Sparkles, TrendingDown, TrendingUp, Repeat, CalendarClock, Zap } from 'lucide-react';
-import { Advice, api, errorMessage } from '../services/api';
+import { Advice, api, errorMessage, pct } from '../services/api';
 import { useI18n, VERDICT_STYLE } from '../context';
 
 interface Props {
@@ -81,6 +81,21 @@ export function AdvicePanel({ symbol, onAdvice, onShowDate }: Props) {
                   <ul className="list-disc pl-4">{advice.verification.unverified.map((u, i) => <li key={i}>{u}</li>)}</ul>
                 </div>
               )}
+            </div>
+          )}
+          {advice.track_record && advice.track_record['6m']?.n > 0 && (
+            <div className="text-xs rounded-lg p-2 border border-slate-200 dark:border-slate-800">
+              <div className="muted mb-1">{t.trackRecord}</div>
+              <div className="flex flex-wrap gap-x-4">
+                {(['1m', '3m', '6m'] as const).map((h) => {
+                  const r = advice.track_record![h];
+                  return r.hit_rate === null ? null : (
+                    <span key={h}>{h === '6m' ? '6 m' : t[`p_${h}` as 'p_1m']} : <b className={r.hit_rate >= 55 ? 'up' : r.hit_rate < 45 ? 'down' : ''}>{r.hit_rate} %</b> {t.trHit}
+                      {r.avg_after_buy !== null && <span className="muted"> · {t.trAfterBuy} {pct(r.avg_after_buy)}</span>}</span>
+                  );
+                })}
+              </div>
+              {(advice.track_record['6m'].hit_rate ?? 100) < 45 && <div className="text-amber-600 dark:text-amber-400 mt-1">{t.trLow}</div>}
             </div>
           )}
           <p className="text-sm leading-relaxed">{advice.summary}</p>

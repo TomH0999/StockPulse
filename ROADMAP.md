@@ -20,18 +20,27 @@ Classement, liste des entreprises, analyses automatiques, pool de clés IA multi
       alertes par ligne, suivi du plafond de versements (150 000 €)
 - [x] Page d'accueil « Tableau de bord » : état de l'app, PEA, favoris, opportunités, alertes
 
-## 🔜 v1.3 — Catalogue PEA complet et fondamentaux
-- Catalogue SBF 120 + grandes valeurs européennes + ETF éligibles PEA, secteurs
-- Fondamentaux (PER, rendement du dividende, dette) intégrés au conseil et au classement
+## ✅ v1.3 — Catalogue élargi et fondamentaux
+- [x] 2 904 valeurs : toute la cote Euronext (Paris, Amsterdam, Bruxelles, Lisbonne, Dublin, Milan, Oslo),
+      DAX / MDAX / SDAX, IBEX 35, OMX Stockholm / Copenhague / Helsinki, ATX, WIG20, ETF PEA courants,
+      SMI, FTSE 100, ~980 grandes valeurs américaines (> 10 Md$), grandes valeurs Asie / Canada / Australie
+- [x] 1 814 valeurs éligibles PEA, 868 valeurs principales analysées automatiquement, secteurs (2 812 valeurs)
+- [x] Rendement du dividende intégré au conseil
+- [x] Générateur reproductible : `python tools/build_catalog.py`
+- [ ] PER, dette, marges : nécessite une source de fondamentaux avec clé gratuite (ex. Financial Modeling Prep)
 
-## v1.4 — Mesure de la qualité des conseils et alertes
-- Historique des conseils et taux de réussite à 1 / 3 / 6 mois (backtest) affiché à côté du verdict
-- Alertes Windows : seuil de prix, changement de verdict, forte variation d'une ligne du PEA
-- Calendrier des résultats et des dividendes
+## ✅ v1.4 — Qualité des conseils et alertes
+- [x] Fiabilité passée : analyse rejouée chaque mois sur 5 ans, taux de réussite à 1 / 3 / 6 mois par valeur et global
+- [x] Historique quotidien des conseils
+- [x] Alertes Windows : seuils de prix, changement de conseil (favoris / PEA), baisse > 5 % d'une ligne
+- [ ] Calendrier des résultats et dividendes à venir : nécessite une source dédiée (même clé que les fondamentaux)
 
-## v1.5 — Gestion de portefeuille avancée
-- Diversification (secteur, pays, poids par ligne) et suggestions de rééquilibrage
-- Comparaison à un indice de référence (CAC 40, MSCI Europe)
+## ✅ v1.5 — Gestion de portefeuille avancée
+- [x] Diversification par secteur et pays, alertes de concentration (ligne > 20 %, secteur > 35 %, < 5 lignes)
+- [x] Suggestions de rééquilibrage (titres à vendre, lignes à réexaminer, idées dans les secteurs absents)
+- [x] Comparaison au CAC 40 (lignes actuelles rejouées sur 1 an)
+
+## ⏸ En attente de vos retours avant la v2.0
 
 ## v2.0 — Multi-plateforme
 - Installateurs macOS et Linux, signature de code Windows / macOS

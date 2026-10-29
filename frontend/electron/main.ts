@@ -80,6 +80,27 @@ function watchHealth(url: string) {
   }).on('error', () => {});
   setTimeout(check, 60000);
   setInterval(check, 15 * 60000);
+
+  // Alertes (seuils de prix, changement de verdict, forte baisse d'une ligne du PEA) : toutes les 5 min
+  const LABEL: Record<string, string> = { STRONG_BUY: 'Achat fort', BUY: 'Achat', HOLD: 'Conserver', REDUCE: 'Alléger', SELL: 'Vendre' };
+  const describe = (e: Record<string, any>) =>
+    e.type === 'price' ? `${e.symbol} : ${e.price} (${e.direction === 'above' ? 'au-dessus de' : 'sous'} ${e.threshold})`
+      : e.type === 'drop' ? `${e.symbol} : ${Number(e.change).toFixed(1)} % aujourd'hui`
+      : `${e.symbol} : conseil ${LABEL[e.old] ?? e.old} → ${LABEL[e.new] ?? e.new}`;
+  const alerts = () => http.get(`${url}/api/alerts/pending`, (res) => {
+    let body = '';
+    res.on('data', (c) => (body += c));
+    res.on('end', () => {
+      try {
+        const events = JSON.parse(body) as Record<string, any>[];
+        if (events.length && Notification.isSupported()) {
+          new Notification({ title: `StockPulse : ${events.length} alerte(s)`, body: events.map(describe).join('\n') }).show();
+        }
+      } catch { /* réponse illisible : nouvel essai au prochain passage */ }
+    });
+  }).on('error', () => {});
+  setTimeout(alerts, 90000);
+  setInterval(alerts, 5 * 60000);
 }
 
 async function createWindow() {

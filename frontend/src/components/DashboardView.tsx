@@ -7,6 +7,7 @@ import { FavoritesBar } from './FavoritesBar';
 import { ChartPanel } from './ChartPanel';
 import { AdvicePanel } from './AdvicePanel';
 import { NewsPanel } from './NewsPanel';
+import { PriceAlertButton } from './PriceAlertButton';
 
 interface Props {
   symbol: string;
@@ -103,7 +104,10 @@ export function DashboardView({ symbol, onSelect, settingsVersion }: Props) {
             <p className="text-sm muted font-mono">{symbol}{quote?.exchange && ` · ${quote.exchange}`}{quote && ` · ${cur}`}</p>
           </div>
         </div>
-        <StockSearchSelector onSelectStock={(s) => select(s)} />
+        <div className="flex items-center gap-2">
+          <PriceAlertButton symbol={symbol} price={quote?.price} />
+          <StockSearchSelector onSelectStock={(s) => select(s)} />
+        </div>
       </div>
 
       {quoteError && !quote ? (

@@ -11,7 +11,7 @@ _DIR = os.path.join(getattr(sys, "_MEIPASS", os.path.dirname(os.path.abspath(__f
 SUFFIXES = {
     "PA": ("FR", True), "DE": ("DE", True), "F": ("DE", True), "AS": ("NL", True), "BR": ("BE", True), "MC": ("ES", True),
     "MI": ("IT", True), "LS": ("PT", True), "IR": ("IE", True), "HE": ("FI", True), "ST": ("SE", True), "CO": ("DK", True),
-    "OL": ("NO", True), "VI": ("AT", True), "L": ("GB", False), "SW": ("CH", False), "HK": ("HK", False), "T": ("JP", False),
+    "OL": ("NO", True), "VI": ("AT", True), "WA": ("PL", True), "TW": ("TW", False), "L": ("GB", False), "SW": ("CH", False), "HK": ("HK", False), "T": ("JP", False),
     "KS": ("KR", False), "TO": ("CA", False), "AX": ("AU", False),
 }
 
@@ -31,10 +31,16 @@ def entries() -> list[dict]:
                 seen.add(sym)
                 country, pea = SUFFIXES.get(sym.rsplit(".", 1)[-1], ("US", False)) if "." in sym else ("US", False)
                 out.append({"symbol": sym, "name": e["name"], "market": market,
-                            "country": e.get("country", country), "pea": e.get("pea", pea), "sector": e.get("sector")})
+                            "country": e.get("country", country), "pea": e.get("pea", pea), "sector": e.get("sector"),
+                            "core": bool(e.get("core"))})
         _entries = out
     return _entries
 
 
 def symbols() -> list[str]:
     return [e["symbol"] for e in entries()]
+
+
+def core_symbols() -> list[str]:
+    """Valeurs principales (indices, plus fortes capitalisations / échanges) : analysées automatiquement."""
+    return [e["symbol"] for e in entries() if e["core"]]

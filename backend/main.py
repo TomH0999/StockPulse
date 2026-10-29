@@ -1,3 +1,4 @@
+import json
 import os
 import sys
 import threading
@@ -10,7 +11,7 @@ from fastapi.staticfiles import StaticFiles
 
 import catalog
 import store
-from services import advisor, ai_pool, health, news, portfolio, scheduler, screener, yahoo
+from services import advisor, ai_pool, alerts, health, news, portfolio, scheduler, screener, yahoo
 
 store.init()
 threading.Thread(target=news.migrate, daemon=True).start()
@@ -83,6 +84,52 @@ def get_advice(symbol: str, lang: str = "fr", refresh: bool = False, ai: bool = 
     return _yahoo(advisor.advise, symbol, lang, refresh, ai)
 
 
+@app.get("/api/advice/{symbol}/history")
+def get_advice_history(symbol: str):
+    return advisor.history_log(symbol.upper())
+
+
+@app.get("/api/track-record")
+def track_record():
+    """Fiabilité moyenne des conseils (analyse locale rejouée sur 5 ans) sur toutes les valeurs analysées."""
+    agg = {}
+    with store.connect() as conn:
+        for (payload,) in conn.execute("SELECT payload FROM advice_cache"):
+            tr = json.loads(payload).get("track_record") or {}
+            for h, v in tr.items():
+                a = agg.setdefault(h, {"n": 0, "hits": 0, "symbols": 0})
+                if v["n"] and v["hit_rate"] is not None:
+                    a["n"] += v["n"]
+                    a["hits"] += v["hit_rate"] * v["n"] / 100
+                    a["symbols"] += 1
+    return {h: {"symbols": a["symbols"], "n": a["n"], "hit_rate": round(a["hits"] / a["n"] * 100) if a["n"] else None} for h, a in agg.items()}
+
+
+@app.get("/api/alerts")
+def get_alerts():
+    return {"price_alerts": alerts.price_alerts(), "events": alerts.events()}
+
+
+@app.get("/api/alerts/pending")
+def pending_alerts():
+    return alerts.pending()
+
+
+@app.post("/api/alerts")
+def add_alert(symbol: str = Body(...), direction: str = Body(...), price: float = Body(...)):
+    try:
+        alerts.add(symbol, direction, price)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    return alerts.price_alerts()
+
+
+@app.delete("/api/alerts/{alert_id}")
+def delete_alert(alert_id: int):
+    alerts.remove(alert_id)
+    return alerts.price_alerts()
+
+
 @app.get("/api/catalog")
 def get_catalog():
     return catalog.entries()
@@ -133,6 +180,11 @@ def reorder_favorites(symbols: list[str] = Body(...)):
 @app.get("/api/portfolio")
 def get_portfolio():
     return portfolio.summary()
+
+
+@app.get("/api/portfolio/analysis")
+def portfolio_analysis(period: str = "1y"):
+    return {"diversification": portfolio.diversification(portfolio.summary()), "benchmark": portfolio.benchmark(period)}
 
 
 @app.post("/api/portfolio/lines")

@@ -1,14 +1,15 @@
 import { ScreenerRow } from '../services/api';
 import { useI18n } from '../context';
 
-export interface Filters { pea: boolean; country: string }
+export interface Filters { pea: boolean; country: string; sector?: string }
 
 export const applyFilters = (rows: ScreenerRow[], f: Filters) =>
-  rows.filter((r) => (!f.pea || r.pea) && (!f.country || r.country === f.country));
+  rows.filter((r) => (!f.pea || r.pea) && (!f.country || r.country === f.country) && (!f.sector || r.sector === f.sector));
 
 export function MarketFilters({ rows, value, onChange }: { rows: ScreenerRow[]; value: Filters; onChange: (f: Filters) => void }) {
   const { t } = useI18n();
   const countries = [...new Set(rows.map((r) => r.country))].sort();
+  const sectors = [...new Set(rows.map((r) => r.sector).filter(Boolean) as string[])].sort();
   return (
     <div className="flex flex-wrap items-center gap-3">
       <label className="flex items-center gap-2 text-sm cursor-pointer">
@@ -18,6 +19,10 @@ export function MarketFilters({ rows, value, onChange }: { rows: ScreenerRow[]; 
       <select className="input !w-auto !py-1.5" value={value.country} onChange={(e) => onChange({ ...value, country: e.target.value })} aria-label={t.country}>
         <option value="">{t.allCountries}</option>
         {countries.map((c) => <option key={c} value={c}>{c}</option>)}
+      </select>
+      <select className="input !w-auto !py-1.5" value={value.sector ?? ''} onChange={(e) => onChange({ ...value, sector: e.target.value })} aria-label={t.sector}>
+        <option value="">{t.allSectors}</option>
+        {sectors.map((c) => <option key={c} value={c}>{c}</option>)}
       </select>
     </div>
   );

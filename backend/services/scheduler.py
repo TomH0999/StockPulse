@@ -34,7 +34,7 @@ def _queue(ai: bool) -> list[str]:
     cache = advisor.cached_verdicts()
     snap, _ = screener.snapshot(max_age=3600)
     favs = _favorites()
-    order = favs + sorted((s for s in catalog.symbols() if s not in favs), key=lambda s: -abs((snap.get(s) or {}).get("chg_1d") or 0))
+    order = favs + sorted((s for s in catalog.core_symbols() if s not in favs), key=lambda s: -abs((snap.get(s) or {}).get("chg_1d") or 0))
     max_ai_age = settings()["ai_hours"] * 3600
     out = []
     for s in order:
@@ -104,8 +104,9 @@ def start():
 
 def progress() -> dict:
     cache = advisor.cached_verdicts()
-    total = len(catalog.symbols())
-    analysed = sum(1 for s in catalog.symbols() if s in cache)
-    ai = sum(1 for s in catalog.symbols() if s in cache and cache[s]["engine"] != "local")
+    core = set(catalog.core_symbols()) | set(_favorites())
+    total = len(core)
+    analysed = sum(1 for s in core if s in cache)
+    ai = sum(1 for s in core if s in cache and cache[s]["engine"] != "local")
     return {**settings(), **status, "total": total, "analysed": analysed, "ai_analysed": ai,
             "keys_available": ai_pool.available_count(), "keys": len(ai_pool.keys())}

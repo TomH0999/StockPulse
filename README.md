@@ -13,7 +13,7 @@ Feuille de route : [ROADMAP.md](ROADMAP.md)
 ## Fonctionnalités
 
 - **Tableau de bord** (accueil) : PEA, alertes, état de l'application, opportunités PEA, mouvements du jour, favoris.
-- **Mon PEA** : lignes détenues, valeur et plus-value en direct, poids, conseil et alertes par ligne, plafond de versements.
+- **Mon PEA** : diversification, suggestions de rééquilibrage, comparaison au CAC 40, lignes détenues, valeur et plus-value en direct, poids, conseil et alertes par ligne, plafond de versements.
 - **Vérificateur d'état** au lancement (cours, sources, clés IA, base, fraîcheur, version) avec notification Windows si un contrôle se dégrade ;
   contrôle anti-hallucination des analyses IA (chiffres cités confrontés aux données, cohérence du verdict).
 - **Sécurité** : clés IA chiffrées (Windows DPAPI), API locale réservée à l'application, empreinte SHA-256 publiée, mises à jour automatiques.
@@ -24,6 +24,7 @@ Feuille de route : [ROADMAP.md](ROADMAP.md)
 - **Conseil** Achat fort / Achat / Conserver / Alléger / Vendre avec opportunités, menaces, patterns historiques
   (réaction de l'action après ses chocs passés, saisonnalité, tendance) et rebondissements majeurs reliés aux articles.
   Moteur local sans clé ; analyse IA de chaque article avec une clé gratuite Google Gemini ou Groq (Paramètres ⚙).
+- **Fiabilité des conseils** : analyse rejouée sur 5 ans, taux de réussite affiché ; **alertes** de prix et de changement de conseil.
 - **Classement** : plus fortes hausses / baisses (jour, semaine, mois, 3 mois, depuis janvier, 1 an), meilleur score
   d'achat, achats les plus fiables, qualité en solde, moins volatiles, plus à risque, prix ; filtre PEA et pays.
 - **Entreprises** : liste complète du catalogue avec tri, recherche, filtres et aperçu (mini-graphique, performances, conseil).
@@ -49,9 +50,11 @@ Une analyse consomme environ 5 000 jetons. Les quotas gratuits changent souvent 
 Les limites s'appliquent par compte : plusieurs clés d'un même compte partagent le même quota. Pour aller plus vite,
 combinez des fournisseurs différents (créer plusieurs comptes chez un même fournisseur est en général interdit par ses conditions).
 
-## Agrandir le catalogue
+## Catalogue
 
-Ajouter des entrées `{"symbol": "ORA.PA", "name": "Orange SA"}` (symboles Yahoo Finance) dans `backend/catalog/*.json`,
+2 904 valeurs (1 814 éligibles PEA). Régénérer depuis les sources publiques : `python tools/build_catalog.py`
+(cote Euronext, composants d'indices dans `tools/index_constituents.json`, grandes valeurs US, validation Yahoo).
+Ajout manuel : ajouter des entrées `{"symbol": "ORA.PA", "name": "Orange SA"}` (symboles Yahoo Finance) dans `backend/catalog/*.json`,
 ou créer un nouveau fichier par marché. Pays et éligibilité PEA sont déduits du suffixe (`.PA`, `.DE`, `.AS`…).
 
 ## Développement

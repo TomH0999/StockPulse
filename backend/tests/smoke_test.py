@@ -16,7 +16,7 @@ raw = store.get_setting("t")
 assert store.get_secret("t") == "secret-value"
 if sys.platform == "win32":
     assert raw.startswith("dpapi:") and "secret-value" not in raw, raw
-assert len(catalog.entries()) > 200
+assert len(catalog.entries()) > 2000 and len(catalog.core_symbols()) > 500
 assert sentiment.label(sentiment.score("Shares plunge after earnings miss")) == "Bearish"
 assert sentiment.label(sentiment.score("Stock soars to record high after upgrade")) == "Bullish"
 hist = [{"close": 100 + i * 0.1, "ts": 1_600_000_000 + i * 86400, "timestamp": "2020-09-13"} for i in range(400)]

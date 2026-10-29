@@ -118,3 +118,17 @@ def search(query: str) -> list[dict]:
         for q in res.json().get("quotes", [])
         if q.get("symbol") and q.get("quoteType") in ("EQUITY", "ETF", "INDEX", "MUTUALFUND", "CRYPTOCURRENCY", "FUTURE", "CURRENCY")
     ]
+
+
+def dividend_yield(symbol: str, price: float | None) -> float | None:
+    """Rendement du dividende sur 12 mois glissants, à partir de l'historique des versements."""
+    if not price:
+        return None
+    try:
+        res = _session.get(CHART_URL.format(sym=symbol.upper()), params={"range": "2y", "interval": "1mo", "events": "div"}, timeout=10)
+        divs = ((res.json()["chart"]["result"] or [{}])[0].get("events") or {}).get("dividends") or {}
+    except Exception:
+        return None
+    cutoff = time.time() - 365 * 86400
+    total = sum(d["amount"] for d in divs.values() if d.get("date", 0) >= cutoff)
+    return round(total / price * 100, 2) if total else None
