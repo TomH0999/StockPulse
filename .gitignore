@@ -159,3 +159,8 @@ Thumbs.db
 
 # Rapports PDF generes
 backend/reports/
+frontend/dist-electron/
+frontend/release/
+backend/build/
+backend/dist/
+*.spec

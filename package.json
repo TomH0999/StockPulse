@@ -1,15 +1,11 @@
 {
   "name": "stockpulse-workspace",
   "version": "1.0.0",
-  "description": "StockPulse Desktop Application Root Workspace",
+  "description": "StockPulse - centrale bourse & actualités",
   "private": true,
   "scripts": {
     "install:all": "pip install -r backend/requirements.txt && cd frontend && npm install",
     "backend:dev": "cd backend && python main.py",
-    "frontend:dev": "cd frontend && npm run electron:dev",
-    "build:win": "cd frontend && npm run electron:build"
-  },
-  "devDependencies": {
-    "concurrently": "^8.2.2"
+    "frontend:dev": "cd frontend && npm run electron:dev"
   }
 }

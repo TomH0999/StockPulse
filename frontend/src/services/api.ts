@@ -1,28 +1,34 @@
 import axios from 'axios';
 
-// Même origine quand l'interface est servie par le backend (site web / PWA), sinon backend local (Vite dev, Electron)
+// Même origine quand l'interface est servie par le backend (application installée), sinon backend local (Vite dev)
 const isServedByBackend = window.location.protocol.startsWith('http') && window.location.port !== '5173';
 const API_BASE_URL = isServedByBackend ? '/api' : 'http://127.0.0.1:8000/api';
 
-export const apiClient = axios.create({
-  baseURL: API_BASE_URL,
-  headers: {
-    'Content-Type': 'application/json',
-  },
-});
+export const apiClient = axios.create({ baseURL: API_BASE_URL });
+
+export type Lang = 'en' | 'fr' | 'es' | 'zh';
+export type Verdict = 'STRONG_BUY' | 'BUY' | 'HOLD' | 'REDUCE' | 'SELL';
 
 export interface Quote {
   symbol: string;
+  name: string;
+  short_name: string;
+  currency: string;
+  exchange: string;
   price: number;
   change: number;
   change_percent: number;
   volume: number;
-  market_cap?: number;
-  last_updated: string;
+  day_high: number;
+  day_low: number;
+  year_high: number;
+  year_low: number;
+  error?: boolean;
 }
 
 export interface HistoryPoint {
   timestamp: string;
+  ts: number;
   open: number;
   high: number;
   low: number;
@@ -30,78 +36,93 @@ export interface HistoryPoint {
   volume: number;
 }
 
-export interface NewsItem {
+export interface Article {
+  id: number;
   headline: string;
   summary: string;
   url: string;
   source: string;
-  published_at: string;
-  sentiment: 'Buy' | 'Hold' | 'Sell';
+  timestamp: number;
+  sentiment: 'Bullish' | 'Bearish' | 'Neutral';
+  sentiment_score: number | null;
+  ai_sentiment: string | null;
 }
 
-export interface Transaction {
-  id: number;
-  type: 'BUY' | 'SELL';
-  quantity: number;
-  price: number;
-  timestamp: string;
+export interface PriceEvent {
+  date: string;
+  change: number;
+  kind: 'drop' | 'jump';
+  after_20d: number | null;
+  headlines: string[];
 }
 
-export interface Asset {
-  id: number;
+export interface Advice {
   symbol: string;
-  quantity: number;
-  average_price: number;
-  last_updated: string;
-  transactions: Transaction[];
-}
-
-export interface Portfolio {
-  id: number;
   name: string;
-  created_at: string;
-  assets: Asset[];
+  verdict: Verdict;
+  verdict_label: string;
+  score: number;
+  confidence: 'low' | 'medium' | 'high';
+  horizon: string | null;
+  summary: string;
+  opportunities: string[];
+  threats: string[];
+  patterns: string[];
+  catalysts: string[];
+  technicals: Record<string, number | boolean | null>;
+  events: PriceEvent[];
+  engine: string;
+  ai_error: string | null;
+  generated_at: number;
+  articles_analyzed: number;
 }
 
-export const marketApi = {
-  getQuote: async (symbol: string): Promise<Quote> => {
-    const response = await apiClient.get<Quote>(`/market/quote/${symbol}`);
-    return response.data;
-  },
-  getHistory: async (symbol: string, period: string = '1mo'): Promise<{ symbol: string; period: string; data: HistoryPoint[] }> => {
-    const response = await apiClient.get(`/market/history/${symbol}?period=${period}`);
-    return response.data;
-  },
-  // Mis à jour : accepte le paramètre period
-  getNews: async (symbol: string, period: string = '1mo'): Promise<NewsItem[]> => {
-    const response = await apiClient.get<NewsItem[]>(`/market/news/${symbol}?period=${period}`);
-    return response.data;
-  }
+export interface Favorite {
+  symbol: string;
+  name: string;
+  advice: { verdict: Verdict; score: number; generated_at: number } | null;
+}
+
+export interface AiSettings {
+  provider: 'local' | 'gemini' | 'groq';
+  has_key: boolean;
+  key_hint: string;
+}
+
+export interface SearchResult {
+  symbol: string;
+  name: string;
+  exchange: string;
+  type: string;
+}
+
+const get = async <T,>(url: string, params?: object): Promise<T> => (await apiClient.get<T>(url, { params })).data;
+
+export const api = {
+  quote: (symbol: string) => get<Quote>(`/market/quote/${encodeURIComponent(symbol)}`),
+  quotes: (symbols: string[]) => get<Quote[]>('/market/quotes', { symbols: symbols.join(',') }),
+  history: (symbol: string, period: string) =>
+    get<{ data: HistoryPoint[] }>(`/market/history/${encodeURIComponent(symbol)}`, { period }).then((r) => r.data),
+  search: (q: string) => get<SearchResult[]>('/market/search', { q }),
+  news: (symbol: string, refresh = false) =>
+    get<{ articles: Article[]; backfilling: boolean }>(`/market/news/${encodeURIComponent(symbol)}`, { refresh }),
+  advice: (symbol: string, lang: Lang, refresh = false, ai = true) =>
+    get<Advice>(`/advice/${encodeURIComponent(symbol)}`, { lang, refresh, ai }),
+  favorites: () => get<Favorite[]>('/favorites'),
+  addFavorite: async (symbol: string, name: string) => (await apiClient.post<Favorite[]>('/favorites', { symbol, name })).data,
+  removeFavorite: async (symbol: string) => (await apiClient.delete<Favorite[]>(`/favorites/${encodeURIComponent(symbol)}`)).data,
+  reorderFavorites: async (symbols: string[]) => (await apiClient.put<Favorite[]>('/favorites/order', symbols)).data,
+  aiSettings: () => get<AiSettings>('/settings/ai'),
+  saveAiSettings: async (provider: string, key: string) => (await apiClient.put<AiSettings>('/settings/ai', { provider, key })).data,
 };
 
-export const portfolioApi = {
-  getPortfolios: async (): Promise<Portfolio[]> => {
-    const response = await apiClient.get<Portfolio[]>('/portfolio/');
-    return response.data;
-  },
-  createPortfolio: async (name: string): Promise<Portfolio> => {
-    const response = await apiClient.post<Portfolio>('/portfolio/', { name });
-    return response.data;
-  },
-  addTransaction: async (portfolioId: number, symbol: string, type: 'BUY' | 'SELL', quantity: number, price: number): Promise<Asset> => {
-    const response = await apiClient.post<Asset>(`/portfolio/${portfolioId}/transaction`, {
-      symbol,
-      type,
-      quantity,
-      price
-    });
-    return response.data;
-  },
-  getSentiment: async (portfolioId: number): Promise<{ overall: string; score: number; details: Record<string, any> }> => {
-    const response = await apiClient.get(`/portfolio/${portfolioId}/sentiment`);
-    return response.data;
-  },
-  downloadReportUrl: (portfolioId: number): string => {
-    return `${API_BASE_URL}/portfolio/${portfolioId}/report`;
+export const errorMessage = (e: unknown): string =>
+  axios.isAxiosError(e) ? e.response?.data?.detail ?? e.message : String(e);
+
+export const formatPrice = (value: number, currency: string, lang: Lang) => {
+  try {
+    return new Intl.NumberFormat(lang, { style: 'currency', currency, maximumFractionDigits: value < 10 ? 4 : 2 }).format(value);
+  } catch {
+    return `${value.toFixed(2)} ${currency}`;
   }
 };

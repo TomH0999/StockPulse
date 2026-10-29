@@ -1,21 +1,13 @@
 <!DOCTYPE html>
-<html lang="fr">
+<html lang="fr" class="dark">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="theme-color" content="#0f172a" />
-    <link rel="manifest" href="./manifest.webmanifest" />
     <link rel="icon" type="image/png" href="./icon-192.png" />
-    <link rel="apple-touch-icon" href="./icon-192.png" />
-    <title>StockPulse - Financial Dashboard</title>
+    <title>StockPulse</title>
   </head>
-  <body class="bg-slate-950 text-slate-100 selection:bg-sky-500 selection:text-white">
+  <body class="selection:bg-sky-500 selection:text-white">
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
-    <script>
-      if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
-        navigator.serviceWorker.register('./sw.js');
-      }
-    </script>
   </body>
 </html>

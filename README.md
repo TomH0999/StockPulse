@@ -1,22 +1,29 @@
 # StockPulse
 
-Centrale bourse & actualités : cours en direct, graphiques, archive d'articles, portefeuilles.
+Centrale bourse & actualités pour ordinateur : cours en direct, graphiques, archive d'articles et conseil d'investissement.
 
-## Tester en un clic (site web)
+## Installer (Windows)
 
-[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/TomH0999/StockPulse)
+Télécharger `StockPulse-Setup-x.y.z.exe` depuis la page [Releases](https://github.com/TomH0999/StockPulse/releases) et l'exécuter.
+Windows SmartScreen peut afficher un avertissement (application non signée) : « Informations complémentaires » → « Exécuter quand même ».
 
-Plan gratuit : le service se met en veille après 15 min d'inactivité et la base SQLite repart de zéro à chaque redéploiement.
+## Fonctionnalités
 
-**Ajouter au PC portable** : ouvrir le site dans Chrome ou Edge → icône « Installer » dans la barre d'adresse.
-
-## Lancer en local (Windows)
-
-Prérequis : Python 3.11+ et Node.js. Double-cliquer sur `StockPulse.bat` → http://127.0.0.1:8000
+- **Favoris** : épingler des actions (☆), cours et verdict en un coup d'œil, réorganisation par glisser-déposer.
+- **Recherche** sur tous les marchés (actions, ETF, indices) par nom ou ticker.
+- **Graphique** de 1 jour à l'historique complet, repère de la date d'un article.
+- **Conseil** Achat fort / Achat / Conserver / Alléger / Vendre avec opportunités, menaces, patterns historiques
+  (réaction de l'action après ses chocs passés, saisonnalité, tendance) et rebondissements majeurs reliés aux articles.
+  Moteur local sans clé ; analyse IA de chaque article avec une clé gratuite Google Gemini ou Groq (Paramètres ⚙).
+- **Archive d'actualités** (Yahoo Finance + Google News, 24 mois reconstitués) : filtres mots-clés, source, sentiment,
+  année / mois / jour, tri par date, pertinence, couverture médiatique ou sentiment.
+- 4 langues (FR, EN, ES, 中文), thème clair / sombre.
 
 ## Développement
 
 ```bash
-cd backend && python main.py          # API sur :8000
-cd frontend && npm run dev            # interface sur :5173
+cd backend && pip install -r requirements.txt && python main.py   # API sur :8000
+cd frontend && npm install && npm run electron:dev                  # interface + fenêtre Electron
 ```
+
+Publier une version : pousser un tag `vX.Y.Z` → GitHub Actions construit l'installateur Windows et crée la release.
