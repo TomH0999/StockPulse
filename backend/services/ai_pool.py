@@ -23,6 +23,9 @@ PROVIDERS = {
 }
 
 
+OPENROUTER_FAMILIES = ["gpt-oss-120b", "gemma-4-31b", "llama-3.3-70b", "deepseek", "nemotron-3-ultra", "qwen", "gemma", "inkling"]
+
+
 class NoCapacity(Exception):
     pass
 
@@ -100,7 +103,12 @@ def _model(entry: dict) -> str:
         ids = [m["id"].removeprefix("models/") for m in res.json().get("data", [])]
         model = next((m for m in p["models"] if m in ids), None)
         if not model and entry["provider"] == "openrouter":
-            model = next((m for m in ids if m.endswith(":free")), None)
+            # Les modèles gratuits changent souvent : choix par famille, en écartant les modèles spécialisés
+            free = [m for m in ids if m.endswith(":free") and not any(x in m for x in ("safety", "code", "guard", "omni", "vl:", "lfm"))]
+            ranked = [m for fam in OPENROUTER_FAMILIES for m in free if fam in m] + free
+            ranked = list(dict.fromkeys(ranked))
+            model = ranked[0] if ranked else None
+            st["fallbacks"] = ranked[1:3]  # modèles de repli si le modèle gratuit principal est saturé
         st["model"] = model or p["models"][0]
     except requests.HTTPError:
         raise
@@ -127,6 +135,9 @@ def _request(entry: dict, prompt: str, max_tokens: int = 4000) -> str:
     model = _model(entry)
     body = {"model": model, "temperature": 0.3, "max_tokens": max_tokens, "response_format": {"type": "json_object"},
             "messages": [{"role": "user", "content": prompt}]}
+    fallbacks = _state.get(entry["id"], {}).get("fallbacks")
+    if entry["provider"] == "openrouter" and fallbacks:
+        body["models"] = [model] + fallbacks
     if "gpt-oss" in model and entry["provider"] in ("groq", "cerebras"):
         body["reasoning_effort"] = "low"
     res = requests.post(f"{p['base']}/chat/completions", headers={"Authorization": f"Bearer {entry['key']}"}, json=body, timeout=120)
@@ -137,6 +148,26 @@ def _request(entry: dict, prompt: str, max_tokens: int = 4000) -> str:
         raise _RateLimited(_wait_seconds(res))
     res.raise_for_status()
     return res.json()["choices"][0]["message"]["content"]
+
+
+def extract_json(text: str) -> dict:
+    """Objet JSON de la réponse, même entouré d'un raisonnement ou de texte (on garde le plus grand objet valide)."""
+    try:
+        return json.loads(text)
+    except ValueError:
+        pass
+    dec, best = json.JSONDecoder(), None
+    for i, ch in enumerate(text):
+        if ch == "{":
+            try:
+                obj, end = dec.raw_decode(text, i)
+            except ValueError:
+                continue
+            if isinstance(obj, dict) and (best is None or end - i > best[0]):
+                best = (end - i, obj)
+    if best is None:
+        raise ValueError("Réponse IA sans JSON exploitable")
+    return best[1]
 
 
 class _RateLimited(Exception):
@@ -175,7 +206,7 @@ def complete_json(prompt: str, max_wait: float = 0) -> tuple[dict, str]:
             text = _request(entry, prompt)
             st["ok"] = st.get("ok", 0) + 1
             st["last_error"] = None
-            return json.loads(text[text.find("{"): text.rfind("}") + 1]), entry["provider"]
+            return extract_json(text), entry["provider"]
         except _RateLimited as e:
             st["cooldown_until"] = time.time() + min(e.wait, 3600) + 1
             last_error = f"{entry['provider']} : limite de débit atteinte"

@@ -90,3 +90,14 @@ def test_keys_are_stored_encrypted_or_marked(monkeypatch):
     add_keys(monkeypatch, "groq")
     raw = store.get_setting("ai_keys")
     assert raw.startswith(("plain:", "dpapi:"))
+
+
+@pytest.mark.parametrize("text,expected", [('{"a": 1}', {"a": 1}), ('Thinking {x} about {"a": 1, "b": {"c": 2}} done', {"a": 1, "b": {"c": 2}}),
+                                           ('```json\n{"v": "BUY"}\n```', {"v": "BUY"})])
+def test_extract_json(text, expected):
+    assert ai_pool.extract_json(text) == expected
+
+
+def test_extract_json_failure():
+    with pytest.raises(ValueError):
+        ai_pool.extract_json("no json here {broken")
