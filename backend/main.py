@@ -10,7 +10,7 @@ from fastapi.staticfiles import StaticFiles
 
 import catalog
 import store
-from services import advisor, ai_pool, news, scheduler, screener, yahoo
+from services import advisor, ai_pool, health, news, portfolio, scheduler, screener, yahoo
 
 store.init()
 threading.Thread(target=news.migrate, daemon=True).start()
@@ -36,8 +36,13 @@ def _yahoo(fn, *args):
 
 
 @app.get("/api/health")
-def health():
+def ping():
     return {"status": "ok"}
+
+
+@app.get("/api/health/full")
+def health_full(refresh: bool = False):
+    return health.run(refresh)
 
 
 @app.get("/api/market/quote/{symbol}")
@@ -123,6 +128,45 @@ def reorder_favorites(symbols: list[str] = Body(...)):
         for i, s in enumerate(symbols):
             conn.execute("UPDATE favorites SET position = ? WHERE symbol = ?", (i, s.upper()))
     return get_favorites()
+
+
+@app.get("/api/portfolio")
+def get_portfolio():
+    return portfolio.summary()
+
+
+@app.post("/api/portfolio/lines")
+def add_line(symbol: str = Body(...), quantity: float = Body(...), avg_price: float = Body(...)):
+    _yahoo(yahoo.quote, symbol)  # refuse un symbole inconnu
+    try:
+        portfolio.upsert(symbol, quantity, avg_price)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    return portfolio.summary()
+
+
+@app.put("/api/portfolio/lines/{line_id}")
+def edit_line(line_id: int, symbol: str = Body(...), quantity: float = Body(...), avg_price: float = Body(...)):
+    try:
+        portfolio.upsert(symbol, quantity, avg_price, line_id)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    return portfolio.summary()
+
+
+@app.delete("/api/portfolio/lines/{line_id}")
+def delete_line(line_id: int):
+    portfolio.delete(line_id)
+    return portfolio.summary()
+
+
+@app.put("/api/portfolio/account")
+def set_account(deposits: float = Body(...), cash: float = Body(...)):
+    try:
+        portfolio.set_account(deposits, cash)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    return portfolio.summary()
 
 
 @app.get("/api/settings/ai")

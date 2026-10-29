@@ -32,18 +32,19 @@ _state: dict[str, dict] = {}  # id -> {cooldown_until, ok, errors, last_error, m
 
 
 def _load() -> list[dict]:
-    raw = store.get_setting("ai_keys")
+    raw = store.get_secret("ai_keys")
     if raw:
         return json.loads(raw)
     # Reprise de la configuration de la version 1.0 (une seule clé)
     provider, key = store.get_setting("ai_provider"), store.get_setting("ai_key")
     keys = [{"id": uuid.uuid4().hex[:8], "provider": provider, "key": key}] if key and provider in PROVIDERS else []
     _save(keys)
+    store.set_setting("ai_key", "")
     return keys
 
 
 def _save(keys: list[dict]):
-    store.set_setting("ai_keys", json.dumps(keys))
+    store.set_secret("ai_keys", json.dumps(keys))
 
 
 def keys() -> list[dict]:

@@ -5,9 +5,18 @@ Centrale bourse & actualités pour ordinateur : cours en direct, graphiques, arc
 ## Installer (Windows)
 
 Télécharger `StockPulse-Setup-x.y.z.exe` depuis la page [Releases](https://github.com/TomH0999/StockPulse/releases) et l'exécuter.
+Vérifier l'intégrité (facultatif) : `certutil -hashfile StockPulse-Setup-x.y.z.exe SHA256` doit correspondre à `SHA256SUMS.txt` de la release.
 Windows SmartScreen peut afficher un avertissement (application non signée) : « Informations complémentaires » → « Exécuter quand même ».
 
+Feuille de route : [ROADMAP.md](ROADMAP.md)
+
 ## Fonctionnalités
+
+- **Tableau de bord** (accueil) : PEA, alertes, état de l'application, opportunités PEA, mouvements du jour, favoris.
+- **Mon PEA** : lignes détenues, valeur et plus-value en direct, poids, conseil et alertes par ligne, plafond de versements.
+- **Vérificateur d'état** au lancement (cours, sources, clés IA, base, fraîcheur, version) avec notification Windows si un contrôle se dégrade ;
+  contrôle anti-hallucination des analyses IA (chiffres cités confrontés aux données, cohérence du verdict).
+- **Sécurité** : clés IA chiffrées (Windows DPAPI), API locale réservée à l'application, empreinte SHA-256 publiée, mises à jour automatiques.
 
 - **Favoris** : épingler des actions (☆), cours et verdict en un coup d'œil, réorganisation par glisser-déposer.
 - **Recherche** sur tous les marchés (actions, ETF, indices) par nom ou ticker.

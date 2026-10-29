@@ -67,6 +67,22 @@ export function AdvicePanel({ symbol, onAdvice, onShowDate }: Props) {
           <div className="h-2 rounded-full bg-gradient-to-r from-rose-500 via-slate-400 to-emerald-500 relative">
             <div className="absolute -top-1 w-1.5 h-4 rounded bg-slate-900 dark:bg-white shadow" style={{ left: `calc(${gauge}% - 3px)` }} />
           </div>
+          {advice.verification && (
+            <div className={`text-xs rounded-lg p-2 border ${advice.verification.status === 'verified' ? 'border-emerald-500/40 bg-emerald-500/5' : 'border-amber-500/40 bg-amber-500/5'}`}>
+              <b className={advice.verification.status === 'verified' ? 'up' : 'text-amber-600 dark:text-amber-400'}>
+                {advice.verification.status === 'verified' ? `✓ ${t.verified}` : `⚠ ${t.toVerify}`}
+              </b>
+              <span className="muted"> ({advice.verification.checked})</span>
+              {advice.verification.notes.map((n) => (
+                <div key={n}>{t[`note_${n}` as 'note_verdict_score_mismatch'].replace('{s}', `${advice.verification!.local_score > 0 ? '+' : ''}${advice.verification!.local_score}`)}</div>
+              ))}
+              {advice.verification.unverified.length > 0 && (
+                <div className="mt-1"><span className="muted">{t.unverifiedClaims} :</span>
+                  <ul className="list-disc pl-4">{advice.verification.unverified.map((u, i) => <li key={i}>{u}</li>)}</ul>
+                </div>
+              )}
+            </div>
+          )}
           <p className="text-sm leading-relaxed">{advice.summary}</p>
 
           <Section icon={<TrendingUp className="w-3.5 h-3.5" />} title={t.opportunities} items={advice.opportunities} tone="up" />

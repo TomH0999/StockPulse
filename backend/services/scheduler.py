@@ -5,7 +5,7 @@ from concurrent.futures import ThreadPoolExecutor
 
 import catalog
 import store
-from services import advisor, ai_pool, screener
+from services import advisor, ai_pool, portfolio, screener
 
 LOCAL_MAX_AGE = 6 * 3600
 status = {"local_done": 0, "ai_done": 0, "ai_running": 0, "last_error": None}
@@ -21,8 +21,11 @@ def _lang() -> str:
 
 
 def _favorites() -> list[str]:
+    """Lignes du PEA puis favoris : analysés en priorité."""
     with store.connect() as conn:
-        return [r[0] for r in conn.execute("SELECT symbol FROM favorites ORDER BY position")]
+        favs = [r[0] for r in conn.execute("SELECT symbol FROM favorites ORDER BY position")]
+    held = portfolio.symbols()
+    return held + [s for s in favs if s not in held]
 
 
 def _queue(ai: bool) -> list[str]:

@@ -304,7 +304,7 @@ def local_advice(sym, lang, quote, hist, arts):
         "components": {k: round(v, 1) for k, v in parts.items()},
         "technicals": {k: (round(v, 2) if isinstance(v, float) else v) for k, v in tech.items()},
         "news": {k: v for k, v in nv.items() if k != "topics"},
-        "events": evs[-12:][::-1], "engine": "local", "ai_error": None,
+        "events": evs[-12:][::-1], "engine": "local", "ai_error": None, "verification": None,
         "generated_at": int(time.time()), "articles_analyzed": nv["count"],
     }
 
@@ -359,6 +359,8 @@ def advise(sym, lang="fr", force=False, use_ai=True, max_wait=60.0, backfill=Tru
         try:
             ai, provider = ai_pool.complete_json(_prompt(result, recent, lang), max_wait)
             v = ai.get("verdict") if ai.get("verdict") in VERDICTS else result["verdict"]
+            local_score = result["score"]
+            known = _known_values(result, quote)
             result.update({
                 "verdict": v, "verdict_label": T.get(lang, T["en"])["v"][v],
                 "score": int(max(-100, min(100, ai.get("score", result["score"])))),
@@ -369,6 +371,7 @@ def advise(sym, lang="fr", force=False, use_ai=True, max_wait=60.0, backfill=Tru
                 "patterns": (ai.get("patterns") or []) + result["patterns"],
                 "catalysts": ai.get("catalysts") or [], "engine": provider, "articles_analyzed": len(recent),
             })
+            result["verification"] = verify(result, ai, local_score, known)
             with store.connect() as conn:
                 for item in ai.get("article_sentiments") or []:
                     i = item.get("i")
@@ -382,6 +385,42 @@ def advise(sym, lang="fr", force=False, use_ai=True, max_wait=60.0, backfill=Tru
         conn.execute("INSERT OR REPLACE INTO advice_cache (symbol, lang, created_at, payload) VALUES (?, ?, ?, ?)",
                      (sym, lang, int(time.time()), json.dumps(result, ensure_ascii=False)))
     return result
+
+
+_NUM = re.compile(r"([-+−]?\d+(?:[.,]\d+)?)\s*(%|€|\$|USD|EUR)")
+
+
+def _known_values(result, quote) -> list[float]:
+    """Toutes les valeurs réellement calculées, auxquelles les chiffres cités par l'IA doivent correspondre."""
+    vals = [v for v in result["technicals"].values() if isinstance(v, (int, float)) and not isinstance(v, bool)]
+    vals += [quote.get(k) or 0 for k in ("price", "change_percent", "year_high", "year_low", "day_high", "day_low")]
+    for e in result["events"]:
+        vals += [e["change"], e["after_20d"] or 0]
+    for line in result["patterns"] + result["opportunities"] + result["threats"]:
+        vals += [float(m.group(1).replace(",", ".").replace("−", "-")) for m in _NUM.finditer(line)]
+    vals += [float(x) for x in re.findall(r"\d+(?:\.\d+)?", " ".join(result["patterns"]))]
+    return [abs(v) for v in vals]
+
+
+def verify(result, ai, local_score, known) -> dict:
+    """Contrôle anti-hallucination : chiffres cités, cohérence du verdict, écart avec l'analyse calculée."""
+    notes, unverified, checked = [], [], 0
+    texts = [ai.get("summary") or ""] + (ai.get("opportunities") or []) + (ai.get("threats") or []) + (ai.get("patterns") or [])
+    for text in texts:
+        for m in _NUM.finditer(text):
+            n = abs(float(m.group(1).replace(",", ".").replace("−", "-")))
+            checked += 1
+            if not any(abs(n - k) <= max(1.0, 0.05 * k) for k in known):
+                start = max(0, m.start() - 40)
+                unverified.append("…" + text[start:m.end()].strip())
+    expected = ("STRONG_BUY" if result["score"] >= 40 else "BUY" if result["score"] >= 15 else "HOLD"
+                if result["score"] > -15 else "REDUCE" if result["score"] > -40 else "SELL")
+    if abs(VERDICTS.index(expected) - VERDICTS.index(result["verdict"])) > 1:
+        notes.append("verdict_score_mismatch")
+    if abs(result["score"] - local_score) > 50:
+        notes.append("diverges_from_local")
+    status = "warning" if notes or len(unverified) > max(1, checked // 3) else "verified"
+    return {"status": status, "checked": checked, "unverified": unverified[:6], "notes": notes, "local_score": local_score}
 
 
 def cached_verdicts() -> dict:

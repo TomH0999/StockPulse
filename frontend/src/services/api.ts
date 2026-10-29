@@ -73,6 +73,7 @@ export interface Advice {
   events: PriceEvent[];
   engine: string;
   ai_error: string | null;
+  verification: { status: 'verified' | 'warning'; checked: number; unverified: string[]; notes: string[]; local_score: number } | null;
   generated_at: number;
   articles_analyzed: number;
 }
@@ -142,6 +143,45 @@ export interface AiSettings {
   };
 }
 
+export interface HealthReport {
+  overall: 'ok' | 'warn' | 'error';
+  checks: { id: string; status: 'ok' | 'warn' | 'error'; detail: string }[];
+  checked_at: number;
+  version: string;
+}
+
+export interface PortfolioLine {
+  id: number;
+  symbol: string;
+  name: string;
+  quantity: number;
+  avg_price: number;
+  currency: string;
+  price: number;
+  change_percent: number | null;
+  value: number;
+  cost: number;
+  pnl: number;
+  pnl_percent: number;
+  weight: number | null;
+  advice: AdviceSummary | null;
+  alerts: string[];
+}
+
+export interface Portfolio {
+  lines: PortfolioLine[];
+  value: number;
+  cost: number;
+  pnl: number;
+  pnl_percent: number;
+  day_change: number;
+  cash: number;
+  deposits: number;
+  ceiling: number;
+  total: number;
+  performance: number | null;
+}
+
 export interface SearchResult {
   symbol: string;
   name: string;
@@ -166,6 +206,12 @@ export const api = {
   removeFavorite: async (symbol: string) => (await apiClient.delete<Favorite[]>(`/favorites/${encodeURIComponent(symbol)}`)).data,
   reorderFavorites: async (symbols: string[]) => (await apiClient.put<Favorite[]>('/favorites/order', symbols)).data,
   catalog: () => get<CatalogEntry[]>('/catalog'),
+  health: (refresh = false) => get<HealthReport>('/health/full', { refresh }),
+  portfolio: () => get<Portfolio>('/portfolio'),
+  addLine: async (symbol: string, quantity: number, avg_price: number) => (await apiClient.post<Portfolio>('/portfolio/lines', { symbol, quantity, avg_price })).data,
+  editLine: async (id: number, symbol: string, quantity: number, avg_price: number) => (await apiClient.put<Portfolio>(`/portfolio/lines/${id}`, { symbol, quantity, avg_price })).data,
+  deleteLine: async (id: number) => (await apiClient.delete<Portfolio>(`/portfolio/lines/${id}`)).data,
+  setAccount: async (deposits: number, cash: number) => (await apiClient.put<Portfolio>('/portfolio/account', { deposits, cash })).data,
   screener: () => get<{ updated: number; rows: ScreenerRow[] }>('/screener'),
   aiSettings: () => get<AiSettings>('/settings/ai'),
   addAiKey: async (provider: string, key: string) => (await apiClient.post<AiSettings>('/settings/ai/keys', { provider, key })).data,
@@ -188,3 +234,7 @@ let catalogPromise: Promise<CatalogEntry[]> | null = null;
 export const loadCatalog = () => (catalogPromise ??= api.catalog().catch((e) => { catalogPromise = null; throw e; }));
 
 export const pct = (v: number | null | undefined) => (v === null || v === undefined ? '–' : `${v > 0 ? '+' : ''}${v.toFixed(2)}%`);
+
+export const money = (v: number, lang: Lang, currency = 'EUR') => {
+  try { return new Intl.NumberFormat(lang, { style: 'currency', currency }).format(v); } catch { return `${v.toFixed(2)} ${currency}`; }
+};
