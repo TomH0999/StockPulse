@@ -26,4 +26,4 @@ cd backend && pip install -r requirements.txt && python main.py   # API sur :800
 cd frontend && npm install && npm run electron:dev                  # interface + fenêtre Electron
 ```
 
-Publier une version : pousser un tag `vX.Y.Z` → GitHub Actions construit l'installateur Windows et crée la release.
+Publier une version : incrémenter `version` dans `frontend/package.json`, puis lancer le workflow « Release Windows » (onglet Actions) ou pousser un tag `vX.Y.Z`.

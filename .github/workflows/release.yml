@@ -41,9 +41,16 @@ jobs:
           name: StockPulse-Windows
           path: frontend/release/*.exe
 
+      - name: Lire la version
+        id: version
+        shell: bash
+        run: echo "tag=v$(node -p "require('./frontend/package.json').version")" >> "$GITHUB_OUTPUT"
+
       - name: Publier la release
-        if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ steps.version.outputs.tag }}
+          name: StockPulse ${{ steps.version.outputs.tag }}
+          target_commitish: ${{ github.sha }}
           files: frontend/release/*.exe
           generate_release_notes: true
