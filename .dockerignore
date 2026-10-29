@@ -1,0 +1,6 @@
+**/node_modules
+frontend/dist
+frontend/dist-electron
+frontend/release
+**/__pycache__
+.git

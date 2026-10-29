@@ -1,0 +1,6 @@
+services:
+  - type: web
+    name: stockpulse
+    runtime: docker
+    plan: free
+    healthCheckPath: /api/portfolio/

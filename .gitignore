@@ -156,3 +156,6 @@ vite.config.ts.timestamp-*
 Thumbs.db
 .vscode/
 .idea/
+
+# Rapports PDF generes
+backend/reports/

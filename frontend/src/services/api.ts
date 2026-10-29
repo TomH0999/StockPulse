@@ -1,6 +1,8 @@
 import axios from 'axios';
 
-const API_BASE_URL = 'http://127.0.0.1:8000/api';
+// Même origine quand l'interface est servie par le backend (site web / PWA), sinon backend local (Vite dev, Electron)
+const isServedByBackend = window.location.protocol.startsWith('http') && window.location.port !== '5173';
+const API_BASE_URL = isServedByBackend ? '/api' : 'http://127.0.0.1:8000/api';
 
 export const apiClient = axios.create({
   baseURL: API_BASE_URL,

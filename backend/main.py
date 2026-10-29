@@ -7,6 +7,15 @@ import sqlite3
 import xml.etree.ElementTree as ET
 from email.utils import parsedate_to_datetime
 import re
+import os
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
+
+from database import engine, Base
+import models
+from routers import portfolio
+
+Base.metadata.create_all(bind=engine)
 
 app = FastAPI(title="StockPulse Backend", version="1.0.0")
 
@@ -22,7 +31,11 @@ HEADERS = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
 }
 
-DB_NAME = "market_news.db"
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+DB_NAME = os.path.join(BASE_DIR, "..", "market_news.db")
+FRONTEND_DIST = os.path.join(BASE_DIR, "..", "frontend", "dist")
+
+app.include_router(portfolio.router)
 
 def init_db():
     conn = sqlite3.connect(DB_NAME)
@@ -288,6 +301,17 @@ def get_news(symbol: str):
         print(f"Erreur agrégation news pour {symbol}: {str(e)}")
         return []
 
+# Sert l'interface web compilée (frontend/dist) pour un déploiement en un seul service
+if os.path.isdir(FRONTEND_DIST):
+    app.mount("/assets", StaticFiles(directory=os.path.join(FRONTEND_DIST, "assets")), name="assets")
+
+    @app.get("/{full_path:path}", include_in_schema=False)
+    def serve_frontend(full_path: str):
+        file_path = os.path.join(FRONTEND_DIST, full_path)
+        if full_path and os.path.isfile(file_path):
+            return FileResponse(file_path)
+        return FileResponse(os.path.join(FRONTEND_DIST, "index.html"))
+
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run("main:app", host="127.0.0.1", port=8000, reload=True)
+    uvicorn.run("main:app", host=os.getenv("HOST", "127.0.0.1"), port=int(os.getenv("PORT", "8000")))
