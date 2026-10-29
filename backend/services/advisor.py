@@ -314,7 +314,7 @@ def local_advice(sym, lang, quote, hist, arts):
 def _prompt(base, arts, lang):
     t = base["technicals"]
     lines = [f"[{i}] {datetime.fromtimestamp(a['timestamp'], timezone.utc):%Y-%m-%d} | {a['source']} | {a['headline']}"
-             + (f" — {a['summary'][:200]}" if a["summary"] else "") for i, a in enumerate(arts)]
+             + (f" — {a['summary'][:120]}" if a["summary"] else "") for i, a in enumerate(arts)]
     evs = [f"{e['date']}: {e['change']:+.1f}% (20 sessions later: {e['after_20d']}%) news: {' / '.join(e['headlines']) or 'none'}"
            for e in base["events"]]
     return f"""You are a seasoned equity analyst and long-term investor. Analyse {base['name']} ({base['symbol']}).
@@ -334,7 +334,23 @@ Answer ONLY with JSON, all text in {LANG_NAMES.get(lang, 'English')}:
 {{"verdict": "STRONG_BUY|BUY|HOLD|REDUCE|SELL", "score": <int -100..100>, "confidence": "low|medium|high",
 "horizon": "<short phrase, e.g. 3-6 months>", "summary": "<4-6 sentences of investor reasoning>",
 "opportunities": ["..."], "threats": ["..."], "patterns": ["<recurring behaviours spotted>"], "catalysts": ["<upcoming events to watch>"],
-"article_sentiments": [{{"i": <article number>, "s": <float -1..1 impact on the stock>}}]}}"""
+"article_sentiments": [{{"i": <article number>, "s": <float -1..1 impact on the stock>}}]}}
+"article_sentiments" MUST contain exactly one entry for EVERY numbered article (0 to {len(arts) - 1})."""
+
+
+GROQ_PREFERRED = ["openai/gpt-oss-120b", "llama-3.3-70b-versatile", "qwen/qwen3.8-27b", "openai/gpt-oss-20b"]
+_groq_models: dict = {}
+
+
+def _groq_model(key):
+    """Choisit le meilleur modèle disponible (Groq retire régulièrement d'anciens modèles)."""
+    if key not in _groq_models:
+        res = requests.get("https://api.groq.com/openai/v1/models", headers={"Authorization": f"Bearer {key}"}, timeout=20)
+        res.raise_for_status()
+        ids = [m["id"] for m in res.json()["data"]]
+        fallback = next((m for m in ids if any(k in m for k in ("gpt-oss", "llama-3", "qwen"))), ids[0])
+        _groq_models[key] = next((m for m in GROQ_PREFERRED if m in ids), fallback)
+    return _groq_models[key]
 
 
 def _call_llm(provider, key, prompt):
@@ -347,10 +363,19 @@ def _call_llm(provider, key, prompt):
         res.raise_for_status()
         text = res.json()["candidates"][0]["content"]["parts"][0]["text"]
     elif provider == "groq":
-        res = requests.post(
-            "https://api.groq.com/openai/v1/chat/completions", headers={"Authorization": f"Bearer {key}"},
-            json={"model": "llama-3.3-70b-versatile", "temperature": 0.3, "response_format": {"type": "json_object"},
-                  "messages": [{"role": "user", "content": prompt}]}, timeout=120)
+        model = _groq_model(key)
+        body = {"model": model, "temperature": 0.3, "response_format": {"type": "json_object"}, "max_completion_tokens": 4000,
+                "messages": [{"role": "user", "content": prompt}]}
+        if "gpt-oss" in model:
+            body["reasoning_effort"] = "low"
+        for attempt in range(3):
+            res = requests.post("https://api.groq.com/openai/v1/chat/completions",
+                                headers={"Authorization": f"Bearer {key}"}, json=body, timeout=120)
+            if res.status_code != 429 or attempt == 2:
+                break
+            # Offre gratuite limitée en jetons par minute : on attend la réinitialisation indiquée par Groq
+            wait = re.match(r"(?:(\d+)m)?([\d.]+)s", res.headers.get("x-ratelimit-reset-tokens", "") or "")
+            time.sleep(min(65, (int(wait.group(1) or 0) * 60 + float(wait.group(2))) if wait else 20) + 1)
         res.raise_for_status()
         text = res.json()["choices"][0]["message"]["content"]
     else:
@@ -385,7 +410,7 @@ def advise(sym, lang="fr", force=False, use_ai=True):
     result = local_advice(sym, lang, quote, hist, arts)
 
     if want_ai:
-        recent = arts[:80]
+        recent = arts[:50]
         try:
             ai = _call_llm(provider, key, _prompt(result, recent, lang))
             v = ai.get("verdict") if ai.get("verdict") in VERDICTS else result["verdict"]
