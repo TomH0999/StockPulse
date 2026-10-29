@@ -2,6 +2,7 @@ name: Release Windows
 
 on:
   push:
+    branches: [main, claude/epic-euler-uzxkgp]
     tags: ["v*"]
   workflow_dispatch:
 
