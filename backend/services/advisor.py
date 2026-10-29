@@ -7,10 +7,8 @@ import time
 from collections import defaultdict
 from datetime import datetime, timezone
 
-import requests
-
 import store
-from services import news, yahoo
+from services import ai_pool, fundamentals, news, yahoo
 
 CACHE_SECONDS = 3600
 VERDICTS = ["SELL", "REDUCE", "HOLD", "BUY", "STRONG_BUY"]
@@ -40,6 +38,11 @@ T = {
         "season": "Historiquement, {month} est positif {p:.0f} % des années ({m:+.1f} % en moyenne).",
         "cagr": "Performance annualisée de {c:+.1f} % sur {y} ans, perte maximale historique de {dd:.0f} %.",
         "topic": "Thème d'actualité : {t}.",
+        "dividend": "Rendement du dividende de {y:.1f} % sur 12 mois.",
+        "pe_loss": "Entreprise déficitaire (PER négatif).", "pe_high": "Valorisation élevée : PER de {v:.0f}.",
+        "pe_low": "Valorisation modérée : PER de {v:.0f}.", "margin_high": "Forte rentabilité : marge nette de {v:.0f} %.",
+        "debt_high": "Endettement élevé : dette / capitaux propres de {v:.1f}.", "roe_high": "Rentabilité des capitaux propres de {v:.0f} %.",
+        "earnings_soon": "Résultats attendus le {d} : volatilité probable.",
         "summary": "{name} : verdict « {v} » (score {s:+d}/100). {lead}",
         "pros": "Points forts : {x}", "cons": "Points de vigilance : {x}",
         "topics": {"earnings": "résultats", "guidance": "prévisions", "analysts": "avis d'analystes", "legal": "juridique / régulation",
@@ -72,6 +75,11 @@ T = {
         "season": "Historically, {month} is positive {p:.0f}% of years ({m:+.1f}% on average).",
         "cagr": "Annualised return of {c:+.1f}% over {y} years, worst historical drawdown {dd:.0f}%.",
         "topic": "News theme: {t}.",
+        "dividend": "Dividend yield of {y:.1f}% over 12 months.",
+        "pe_loss": "Loss-making company (negative P/E).", "pe_high": "Rich valuation: P/E of {v:.0f}.",
+        "pe_low": "Moderate valuation: P/E of {v:.0f}.", "margin_high": "Highly profitable: net margin of {v:.0f}%.",
+        "debt_high": "High leverage: debt/equity of {v:.1f}.", "roe_high": "Return on equity of {v:.0f}%.",
+        "earnings_soon": "Earnings due on {d}: expect volatility.",
         "summary": "{name}: “{v}” (score {s:+d}/100). {lead}",
         "pros": "Strengths: {x}", "cons": "Watch-outs: {x}", "topics": {},
         "months": ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"],
@@ -178,8 +186,8 @@ def seasonality(hist):
     return monthly
 
 
-def news_view(arts):
-    now = time.time()
+def news_view(arts, now=None):
+    now = now or time.time()
     recent = [a for a in arts if a["timestamp"] >= now - 30 * 86400]
     before = [a for a in arts if now - 60 * 86400 <= a["timestamp"] < now - 30 * 86400]
     wsum = wtot = 0.0
@@ -209,11 +217,12 @@ def _article_score(a):
     return a["sentiment_score"] or 0.0
 
 
-def local_advice(sym, lang, quote, hist, arts):
+def local_advice(sym, lang, quote, hist, arts, now=None):
+    now = now or time.time()
     L = T.get(lang, T["en"])
     tech = technicals(hist)
     evs, ev_stats = events(hist, arts)
-    nv = news_view(arts)
+    nv = news_view(arts, now)
     opp, thr, pat = [], [], []
     parts = {}
 
@@ -264,7 +273,7 @@ def local_advice(sym, lang, quote, hist, arts):
             else:
                 key, p = ("jump_cont", p_up) if p_up >= 50 else ("jump_fade", 100 - p_up)
             pat.append(L[key].format(n=len(vals), p=p, m=m))
-            recent = [e for e in evs if e["kind"] == kind and e["ts"] >= time.time() - 15 * 86400]
+            recent = [e for e in evs if e["kind"] == kind and e["ts"] >= now - 15 * 86400]
             if recent:
                 e = recent[-1]
                 pat.append(L["recent_" + kind].format(r=e["change"], d=e["date"]))
@@ -272,7 +281,7 @@ def local_advice(sym, lang, quote, hist, arts):
                 (opp if m > 0 else thr).append(pat[-2])
 
     months = seasonality(hist)
-    cur = datetime.now().month
+    cur = datetime.fromtimestamp(now).month
     if len(months.get(cur, [])) >= 5:
         vals = months[cur]
         p = sum(v > 0 for v in vals) / len(vals) * 100
@@ -280,6 +289,31 @@ def local_advice(sym, lang, quote, hist, arts):
         if p >= 65 or p <= 35:
             parts["season"] = 4 if p >= 65 else -4
 
+    dy = quote.get("dividend_yield")
+    if dy:
+        tech["dividend_yield"] = dy
+        if dy >= 3:
+            opp.append(L["dividend"].format(y=dy))
+            parts["dividend"] = min(6, dy)
+    f = quote.get("fundamentals") or {}
+    if f:
+        pe, fp = f.get("pe"), 0
+        if pe is not None:
+            if pe < 0:
+                thr.append(L["pe_loss"]); fp -= 6
+            elif pe > 40:
+                thr.append(L["pe_high"].format(v=pe)); fp -= 4
+            elif pe < 15:
+                opp.append(L["pe_low"].format(v=pe)); fp += 4
+        if (f.get("net_margin") or 0) > 15:
+            opp.append(L["margin_high"].format(v=f["net_margin"])); fp += 3
+        if (f.get("roe") or 0) > 15:
+            opp.append(L["roe_high"].format(v=f["roe"])); fp += 2
+        if (f.get("debt_to_equity") or 0) > 2:
+            thr.append(L["debt_high"].format(v=f["debt_to_equity"])); fp -= 4
+        if f.get("next_earnings") and f["next_earnings"] <= datetime.fromtimestamp(now + 14 * 86400).strftime("%Y-%m-%d"):
+            pat.append(L["earnings_soon"].format(d=f["next_earnings"]))
+        parts["fundamentals"] = fp
     if nv["count"]:
         parts["news"] = nv["score"] * 35
         if nv["score"] >= 0.08:
@@ -306,8 +340,8 @@ def local_advice(sym, lang, quote, hist, arts):
         "components": {k: round(v, 1) for k, v in parts.items()},
         "technicals": {k: (round(v, 2) if isinstance(v, float) else v) for k, v in tech.items()},
         "news": {k: v for k, v in nv.items() if k != "topics"},
-        "events": evs[-12:][::-1], "engine": "local", "ai_error": None,
-        "generated_at": int(time.time()), "articles_analyzed": nv["count"],
+        "events": evs[-12:][::-1], "engine": "local", "ai_error": None, "verification": None,
+        "generated_at": int(time.time()), "articles_analyzed": nv["count"], "fundamentals": f or None,
     }
 
 
@@ -338,63 +372,10 @@ Answer ONLY with JSON, all text in {LANG_NAMES.get(lang, 'English')}:
 "article_sentiments" MUST contain exactly one entry for EVERY numbered article (0 to {len(arts) - 1})."""
 
 
-GROQ_PREFERRED = ["openai/gpt-oss-120b", "llama-3.3-70b-versatile", "qwen/qwen3.8-27b", "openai/gpt-oss-20b"]
-_groq_models: dict = {}
-
-
-def _groq_model(key):
-    """Choisit le meilleur modèle disponible (Groq retire régulièrement d'anciens modèles)."""
-    if key not in _groq_models:
-        res = requests.get("https://api.groq.com/openai/v1/models", headers={"Authorization": f"Bearer {key}"}, timeout=20)
-        res.raise_for_status()
-        ids = [m["id"] for m in res.json()["data"]]
-        fallback = next((m for m in ids if any(k in m for k in ("gpt-oss", "llama-3", "qwen"))), ids[0])
-        _groq_models[key] = next((m for m in GROQ_PREFERRED if m in ids), fallback)
-    return _groq_models[key]
-
-
-def _call_llm(provider, key, prompt):
-    if provider == "gemini":
-        res = requests.post(
-            "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent",
-            headers={"x-goog-api-key": key},
-            json={"contents": [{"parts": [{"text": prompt}]}],
-                  "generationConfig": {"responseMimeType": "application/json", "temperature": 0.3}}, timeout=120)
-        res.raise_for_status()
-        text = res.json()["candidates"][0]["content"]["parts"][0]["text"]
-    elif provider == "groq":
-        model = _groq_model(key)
-        body = {"model": model, "temperature": 0.3, "response_format": {"type": "json_object"}, "max_completion_tokens": 4000,
-                "messages": [{"role": "user", "content": prompt}]}
-        if "gpt-oss" in model:
-            body["reasoning_effort"] = "low"
-        for attempt in range(3):
-            res = requests.post("https://api.groq.com/openai/v1/chat/completions",
-                                headers={"Authorization": f"Bearer {key}"}, json=body, timeout=120)
-            if res.status_code != 429 or attempt == 2:
-                break
-            # Offre gratuite limitée en jetons par minute : on attend la réinitialisation indiquée par Groq
-            wait = re.match(r"(?:(\d+)m)?([\d.]+)s", res.headers.get("x-ratelimit-reset-tokens", "") or "")
-            time.sleep(min(65, (int(wait.group(1) or 0) * 60 + float(wait.group(2))) if wait else 20) + 1)
-        res.raise_for_status()
-        text = res.json()["choices"][0]["message"]["content"]
-    else:
-        raise ValueError("Fournisseur IA inconnu")
-    return json.loads(text[text.find("{"): text.rfind("}") + 1])
-
-
-def ai_settings():
-    return store.get_setting("ai_provider", "local"), store.get_setting("ai_key", "")
-
-
-def test_ai(provider, key):
-    _call_llm(provider, key, 'Reply with JSON {"ok": true}')
-
-
-def advise(sym, lang="fr", force=False, use_ai=True):
+def advise(sym, lang="fr", force=False, use_ai=True, max_wait=60.0, backfill=True, fetch_fundamentals=True):
+    """max_wait : attente maximale d'une clé IA disponible ; backfill : constitution de l'archive 24 mois."""
     sym = sym.upper()
-    provider, key = ai_settings()
-    want_ai = use_ai and provider != "local" and bool(key)
+    want_ai = use_ai and ai_pool.has_keys()
     if not force:
         with store.connect() as conn:
             row = conn.execute("SELECT created_at, payload FROM advice_cache WHERE symbol = ? AND lang = ?", (sym, lang)).fetchone()
@@ -404,16 +385,25 @@ def advise(sym, lang="fr", force=False, use_ai=True):
                 return cached
 
     quote = yahoo.quote(sym)
-    news.refresh(sym, quote.get("name", ""))
+    news.refresh(sym, quote.get("name", ""), backfill=backfill)
     hist = yahoo.daily_history(sym)
     arts = news.articles(sym)
+    quote["dividend_yield"] = yahoo.dividend_yield(sym, quote.get("price"))
+    quote["fundamentals"] = fundamentals.get(sym, fetch=fetch_fundamentals)
     result = local_advice(sym, lang, quote, hist, arts)
+    try:
+        result["track_record"] = backtest(sym, quote, hist, arts)
+    except Exception as e:
+        result["track_record"] = None
+        print(f"Backtest {sym}: {e}")
 
     if want_ai:
         recent = arts[:50]
         try:
-            ai = _call_llm(provider, key, _prompt(result, recent, lang))
+            ai, provider = ai_pool.complete_json(_prompt(result, recent, lang), max_wait)
             v = ai.get("verdict") if ai.get("verdict") in VERDICTS else result["verdict"]
+            local_score = result["score"]
+            known = _known_values(result, quote)
             result.update({
                 "verdict": v, "verdict_label": T.get(lang, T["en"])["v"][v],
                 "score": int(max(-100, min(100, ai.get("score", result["score"])))),
@@ -424,6 +414,7 @@ def advise(sym, lang="fr", force=False, use_ai=True):
                 "patterns": (ai.get("patterns") or []) + result["patterns"],
                 "catalysts": ai.get("catalysts") or [], "engine": provider, "articles_analyzed": len(recent),
             })
+            result["verification"] = verify(result, ai, local_score, known)
             with store.connect() as conn:
                 for item in ai.get("article_sentiments") or []:
                     i = item.get("i")
@@ -433,10 +424,95 @@ def advise(sym, lang="fr", force=False, use_ai=True):
         except Exception as e:
             result["ai_error"] = str(e)[:300]
 
+    _log_history(result, quote.get("price"))
     with store.connect() as conn:
         conn.execute("INSERT OR REPLACE INTO advice_cache (symbol, lang, created_at, payload) VALUES (?, ?, ?, ?)",
                      (sym, lang, int(time.time()), json.dumps(result, ensure_ascii=False)))
     return result
+
+
+HORIZONS = {"1m": 21, "3m": 63, "6m": 126}
+
+
+def _hit(verdict, ret):
+    if verdict in ("BUY", "STRONG_BUY"):
+        return ret > 0
+    if verdict in ("SELL", "REDUCE"):
+        return ret < 0
+    return abs(ret) < 10
+
+
+def backtest(sym, quote, hist, arts, years=5) -> dict:
+    """Rejoue l'analyse locale chaque mois sur le passé et mesure si le verdict s'est révélé juste ensuite."""
+    out = {h: {"n": 0, "hits": 0, "buy_returns": [], "sell_returns": []} for h in HORIZONS}
+    start = max(260, len(hist) - years * 252)
+    arts_sorted = sorted(arts, key=lambda a: a["timestamp"])
+    for t in range(start, len(hist) - 21, 21):
+        ts = hist[t]["ts"]
+        past = [a for a in arts_sorted if a["timestamp"] <= ts]
+        r = local_advice(sym, "en", {**quote, "dividend_yield": None, "fundamentals": None}, hist[: t + 1], past, now=ts)
+        for h, d in HORIZONS.items():
+            if t + d < len(hist):
+                ret = (hist[t + d]["close"] / hist[t]["close"] - 1) * 100
+                o = out[h]
+                o["n"] += 1
+                o["hits"] += _hit(r["verdict"], ret)
+                if r["verdict"] in ("BUY", "STRONG_BUY"):
+                    o["buy_returns"].append(ret)
+                elif r["verdict"] in ("SELL", "REDUCE"):
+                    o["sell_returns"].append(ret)
+    return {h: {"n": o["n"], "hit_rate": round(o["hits"] / o["n"] * 100) if o["n"] else None,
+                "avg_after_buy": round(statistics.mean(o["buy_returns"]), 2) if o["buy_returns"] else None,
+                "avg_after_sell": round(statistics.mean(o["sell_returns"]), 2) if o["sell_returns"] else None}
+            for h, o in out.items()}
+
+
+def _log_history(result, price):
+    with store.connect() as conn:
+        conn.execute("INSERT OR REPLACE INTO advice_history (symbol, day, verdict, score, price, engine) VALUES (?, date('now'), ?, ?, ?, ?)",
+                     (result["symbol"], result["verdict"], result["score"], price, result["engine"]))
+
+
+def history_log(sym) -> list[dict]:
+    with store.connect() as conn:
+        return [dict(r) for r in conn.execute("SELECT day, verdict, score, price, engine FROM advice_history WHERE symbol = ? ORDER BY day DESC LIMIT 60", (sym,))]
+
+
+_NUM = re.compile(r"([-+−]?\d+(?:[.,]\d+)?)\s*(%|€|\$|USD|EUR)")
+
+
+def _known_values(result, quote) -> list[float]:
+    """Toutes les valeurs réellement calculées, auxquelles les chiffres cités par l'IA doivent correspondre."""
+    vals = [v for v in result["technicals"].values() if isinstance(v, (int, float)) and not isinstance(v, bool)]
+    vals += [quote.get(k) or 0 for k in ("price", "change_percent", "year_high", "year_low", "day_high", "day_low", "dividend_yield")]
+    vals += [v for v in (result.get("fundamentals") or {}).values() if isinstance(v, (int, float))]
+    for e in result["events"]:
+        vals += [e["change"], e["after_20d"] or 0]
+    for line in result["patterns"] + result["opportunities"] + result["threats"]:
+        vals += [float(m.group(1).replace(",", ".").replace("−", "-")) for m in _NUM.finditer(line)]
+    vals += [float(x) for x in re.findall(r"\d+(?:\.\d+)?", " ".join(result["patterns"]))]
+    return [abs(v) for v in vals]
+
+
+def verify(result, ai, local_score, known) -> dict:
+    """Contrôle anti-hallucination : chiffres cités, cohérence du verdict, écart avec l'analyse calculée."""
+    notes, unverified, checked = [], [], 0
+    texts = [ai.get("summary") or ""] + (ai.get("opportunities") or []) + (ai.get("threats") or []) + (ai.get("patterns") or [])
+    for text in texts:
+        for m in _NUM.finditer(text):
+            n = abs(float(m.group(1).replace(",", ".").replace("−", "-")))
+            checked += 1
+            if not any(abs(n - k) <= max(1.0, 0.05 * k) for k in known):
+                start = max(0, m.start() - 40)
+                unverified.append("…" + text[start:m.end()].strip())
+    expected = ("STRONG_BUY" if result["score"] >= 40 else "BUY" if result["score"] >= 15 else "HOLD"
+                if result["score"] > -15 else "REDUCE" if result["score"] > -40 else "SELL")
+    if abs(VERDICTS.index(expected) - VERDICTS.index(result["verdict"])) > 1:
+        notes.append("verdict_score_mismatch")
+    if abs(result["score"] - local_score) > 50:
+        notes.append("diverges_from_local")
+    status = "warning" if notes or len(unverified) > max(1, checked // 3) else "verified"
+    return {"status": status, "checked": checked, "unverified": unverified[:6], "notes": notes, "local_score": local_score}
 
 
 def cached_verdicts() -> dict:
@@ -445,5 +521,6 @@ def cached_verdicts() -> dict:
     out = {}
     for r in rows:
         p = json.loads(r[1])
-        out[r[0]] = {"verdict": p["verdict"], "score": p["score"], "generated_at": p["generated_at"]}
+        out[r[0]] = {"verdict": p["verdict"], "score": p["score"], "confidence": p["confidence"],
+                     "engine": p["engine"], "generated_at": p["generated_at"]}
     return out

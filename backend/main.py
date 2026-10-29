@@ -1,20 +1,28 @@
+import json
 import os
 import sys
 import threading
 
 from fastapi import Body, FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
+from starlette.middleware.trustedhost import TrustedHostMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
+import catalog
 import store
-from services import advisor, news, yahoo
+from services import advisor, ai_pool, alerts, fundamentals, health, news, orders, portfolio, scheduler, screener, yahoo
 
 store.init()
 threading.Thread(target=news.migrate, daemon=True).start()
+if not os.environ.get("STOCKPULSE_NO_SCHEDULER"):
+    scheduler.start()
 
 app = FastAPI(title="StockPulse Backend", version="1.0.0")
-app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
+# API réservée à l'application : seule l'interface de développement Vite peut l'appeler depuis une autre origine,
+# et l'en-tête Host est vérifié (protection contre le « DNS rebinding » depuis un site web malveillant)
+app.add_middleware(CORSMiddleware, allow_origins=["http://127.0.0.1:5173", "http://localhost:5173"], allow_methods=["*"], allow_headers=["*"])
+app.add_middleware(TrustedHostMiddleware, allowed_hosts=["127.0.0.1", "localhost"])
 
 BASE_DIR = getattr(sys, "_MEIPASS", os.path.dirname(os.path.abspath(__file__)))
 FRONTEND_DIST = os.environ.get("STOCKPULSE_FRONTEND") or os.path.join(BASE_DIR, "..", "frontend", "dist")
@@ -30,8 +38,13 @@ def _yahoo(fn, *args):
 
 
 @app.get("/api/health")
-def health():
+def ping():
     return {"status": "ok"}
+
+
+@app.get("/api/health/full")
+def health_full(refresh: bool = False):
+    return health.run(refresh)
 
 
 @app.get("/api/market/quote/{symbol}")
@@ -67,7 +80,69 @@ def get_news(symbol: str, refresh: bool = False):
 
 @app.get("/api/advice/{symbol}")
 def get_advice(symbol: str, lang: str = "fr", refresh: bool = False, ai: bool = True):
+    if store.get_setting("ui_lang") != lang:
+        store.set_setting("ui_lang", lang)
     return _yahoo(advisor.advise, symbol, lang, refresh, ai)
+
+
+@app.get("/api/advice/{symbol}/history")
+def get_advice_history(symbol: str):
+    return advisor.history_log(symbol.upper())
+
+
+@app.get("/api/track-record")
+def track_record():
+    """Fiabilité moyenne des conseils (analyse locale rejouée sur 5 ans) sur toutes les valeurs analysées."""
+    agg = {}
+    with store.connect() as conn:
+        for (payload,) in conn.execute("SELECT payload FROM advice_cache"):
+            tr = json.loads(payload).get("track_record") or {}
+            for h, v in tr.items():
+                a = agg.setdefault(h, {"n": 0, "hits": 0, "symbols": 0})
+                if v["n"] and v["hit_rate"] is not None:
+                    a["n"] += v["n"]
+                    a["hits"] += v["hit_rate"] * v["n"] / 100
+                    a["symbols"] += 1
+    return {h: {"symbols": a["symbols"], "n": a["n"], "hit_rate": round(a["hits"] / a["n"] * 100) if a["n"] else None} for h, a in agg.items()}
+
+
+@app.get("/api/alerts")
+def get_alerts():
+    return {"price_alerts": alerts.price_alerts(), "events": alerts.events()}
+
+
+@app.get("/api/alerts/pending")
+def pending_alerts():
+    return alerts.pending()
+
+
+@app.post("/api/alerts")
+def add_alert(symbol: str = Body(...), direction: str = Body(...), price: float = Body(...)):
+    try:
+        alerts.add(symbol, direction, price)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    return alerts.price_alerts()
+
+
+@app.delete("/api/alerts/{alert_id}")
+def delete_alert(alert_id: int):
+    alerts.remove(alert_id)
+    return alerts.price_alerts()
+
+
+@app.get("/api/catalog")
+def get_catalog():
+    return catalog.entries()
+
+
+@app.get("/api/screener")
+def get_screener():
+    """Toutes les entreprises du catalogue avec performances, volatilité et dernier conseil (classement, liste)."""
+    snap, updated = screener.snapshot()
+    cache = advisor.cached_verdicts()
+    rows = [{**e, **snap.get(e["symbol"], {}), "advice": cache.get(e["symbol"])} for e in catalog.entries()]
+    return {"updated": int(updated), "rows": rows}
 
 
 @app.get("/api/favorites")
@@ -103,27 +178,131 @@ def reorder_favorites(symbols: list[str] = Body(...)):
     return get_favorites()
 
 
+@app.get("/api/portfolio")
+def get_portfolio():
+    return portfolio.summary()
+
+
+@app.get("/api/portfolio/analysis")
+def portfolio_analysis(period: str = "1y"):
+    return {"diversification": portfolio.diversification(portfolio.summary()), "benchmark": portfolio.benchmark(period)}
+
+
+@app.post("/api/portfolio/lines")
+def add_line(symbol: str = Body(...), quantity: float = Body(...), avg_price: float = Body(...)):
+    _yahoo(yahoo.quote, symbol)  # refuse un symbole inconnu
+    try:
+        portfolio.upsert(symbol, quantity, avg_price)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    return portfolio.summary()
+
+
+@app.put("/api/portfolio/lines/{line_id}")
+def edit_line(line_id: int, symbol: str = Body(...), quantity: float = Body(...), avg_price: float = Body(...)):
+    try:
+        portfolio.upsert(symbol, quantity, avg_price, line_id)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    return portfolio.summary()
+
+
+@app.delete("/api/portfolio/lines/{line_id}")
+def delete_line(line_id: int):
+    portfolio.delete(line_id)
+    return portfolio.summary()
+
+
+@app.put("/api/portfolio/account")
+def set_account(deposits: float = Body(...), cash: float = Body(...)):
+    try:
+        portfolio.set_account(deposits, cash)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    return portfolio.summary()
+
+
+@app.get("/api/orders/plan")
+def order_plan(symbol: str, side: str, amount: float | None = None):
+    try:
+        return orders.plan(symbol, side, amount)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    except yahoo.YahooError as e:
+        raise HTTPException(404, str(e))
+
+
+@app.post("/api/orders/execute")
+def order_execute(symbol: str = Body(...), side: str = Body(...), quantity: float = Body(...), price: float = Body(...), fees: float = Body(0)):
+    try:
+        return orders.execute(symbol, side, quantity, price, fees)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+
+
+@app.get("/api/orders")
+def order_journal():
+    return orders.journal()
+
+
+@app.put("/api/orders/fees")
+def order_fees(pct: float = Body(...), minimum: float = Body(...)):
+    try:
+        orders.set_fees(pct, minimum)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    return orders.fees_settings()
+
+
+@app.get("/api/fundamentals/{symbol}")
+def get_fundamentals(symbol: str):
+    return fundamentals.get(symbol) or {}
+
+
+@app.get("/api/settings/data")
+def get_data_keys():
+    return {"providers": fundamentals.PROVIDERS, "keys": fundamentals.public_keys(), "catalog_updated": catalog.last_update()}
+
+
+@app.post("/api/settings/data/keys")
+def add_data_key(provider: str = Body(...), key: str = Body(...)):
+    try:
+        fundamentals.add_key(provider, key)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    return get_data_keys()
+
+
+@app.delete("/api/settings/data/keys/{key_id}")
+def remove_data_key(key_id: str):
+    fundamentals.remove_key(key_id)
+    return get_data_keys()
+
+
 @app.get("/api/settings/ai")
 def get_ai_settings():
-    provider, key = advisor.ai_settings()
-    return {"provider": provider, "has_key": bool(key), "key_hint": f"…{key[-4:]}" if key else ""}
+    return {"providers": list(ai_pool.PROVIDERS), "keys": ai_pool.public_keys(), "auto": scheduler.progress()}
 
 
-@app.put("/api/settings/ai")
-def set_ai_settings(provider: str = Body(...), key: str = Body("")):
-    if provider not in ("local", "gemini", "groq"):
-        raise HTTPException(400, "Fournisseur inconnu")
-    if provider != "local":
-        key = key.strip() or advisor.ai_settings()[1]
-        try:
-            advisor.test_ai(provider, key)
-        except Exception as e:
-            raise HTTPException(400, f"Clé refusée par {provider} : {str(e)[:200]}")
-    store.set_setting("ai_provider", provider)
-    if key:
-        store.set_setting("ai_key", key)
-    with store.connect() as conn:
-        conn.execute("DELETE FROM advice_cache")
+@app.post("/api/settings/ai/keys")
+def add_ai_key(provider: str = Body(...), key: str = Body(...)):
+    try:
+        ai_pool.add_key(provider, key)
+    except Exception as e:
+        raise HTTPException(400, f"Clé refusée par {provider} : {str(e)[:200]}")
+    return get_ai_settings()
+
+
+@app.delete("/api/settings/ai/keys/{key_id}")
+def remove_ai_key(key_id: str):
+    ai_pool.remove_key(key_id)
+    return get_ai_settings()
+
+
+@app.put("/api/settings/auto")
+def set_auto(enabled: bool = Body(...), ai_hours: float = Body(12)):
+    store.set_setting("auto_enabled", "1" if enabled else "0")
+    store.set_setting("auto_ai_hours", str(max(1.0, min(168.0, ai_hours))))
     return get_ai_settings()
 
 

@@ -10,12 +10,25 @@
     "assets/icon.png"
   ],
   "extraResources": [
-    { "from": "../backend/dist/stockpulse-backend", "to": "backend" },
-    { "from": "dist", "to": "frontend" }
+    {
+      "from": "../backend/dist/stockpulse-backend",
+      "to": "backend"
+    },
+    {
+      "from": "dist",
+      "to": "frontend"
+    }
   ],
   "artifactName": "${productName}-Setup-${version}.${ext}",
   "win": {
-    "target": [{ "target": "nsis", "arch": ["x64"] }],
+    "target": [
+      {
+        "target": "nsis",
+        "arch": [
+          "x64"
+        ]
+      }
+    ],
     "icon": "assets/icon.ico"
   },
   "nsis": {
@@ -24,5 +37,12 @@
     "createDesktopShortcut": true,
     "createStartMenuShortcut": true,
     "shortcutName": "StockPulse"
-  }
+  },
+  "publish": [
+    {
+      "provider": "github",
+      "owner": "TomH0999",
+      "repo": "StockPulse"
+    }
+  ]
 }

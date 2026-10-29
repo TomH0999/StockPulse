@@ -1,4 +1,5 @@
-import { app, BrowserWindow, shell } from 'electron';
+import { app, BrowserWindow, Notification, shell } from 'electron';
+import { autoUpdater } from 'electron-updater';
 import * as path from 'path';
 import * as net from 'net';
 import * as http from 'http';
@@ -47,6 +48,7 @@ async function startBackend(): Promise<string> {
       PORT: String(port),
       STOCKPULSE_DATA_DIR: app.getPath('userData'),
       STOCKPULSE_FRONTEND: path.join(process.resourcesPath, 'frontend'),
+      STOCKPULSE_VERSION: app.getVersion(),
     },
     windowsHide: true,
   });
@@ -54,7 +56,51 @@ async function startBackend(): Promise<string> {
   backend.stderr?.on('data', (d) => console.error(`[backend] ${d}`));
   const url = `http://127.0.0.1:${port}`;
   await waitForBackend(`${url}/api/health`);
+  watchHealth(url);
   return url;
+}
+
+// Vérificateur d'état : notification Windows dès qu'un contrôle se dégrade (toutes les 15 min)
+const RANK: Record<string, number> = { ok: 0, warn: 1, error: 2 };
+function watchHealth(url: string) {
+  let previous: Record<string, string> = {};
+  const check = () => http.get(`${url}/api/health/full?refresh=true`, (res) => {
+    let body = '';
+    res.on('data', (c) => (body += c));
+    res.on('end', () => {
+      try {
+        const report = JSON.parse(body) as { checks: { id: string; status: string; detail: string }[] };
+        const worse = report.checks.filter((c) => previous[c.id] !== undefined && RANK[c.status] > RANK[previous[c.id]]);
+        if (worse.length && Notification.isSupported()) {
+          new Notification({ title: 'StockPulse : état dégradé', body: worse.map((c) => c.detail).join('\n') }).show();
+        }
+        previous = Object.fromEntries(report.checks.map((c) => [c.id, c.status]));
+      } catch { /* rapport illisible : nouvel essai au prochain passage */ }
+    });
+  }).on('error', () => {});
+  setTimeout(check, 60000);
+  setInterval(check, 15 * 60000);
+
+  // Alertes (seuils de prix, changement de verdict, forte baisse d'une ligne du PEA) : toutes les 5 min
+  const LABEL: Record<string, string> = { STRONG_BUY: 'Achat fort', BUY: 'Achat', HOLD: 'Conserver', REDUCE: 'Alléger', SELL: 'Vendre' };
+  const describe = (e: Record<string, any>) =>
+    e.type === 'price' ? `${e.symbol} : ${e.price} (${e.direction === 'above' ? 'au-dessus de' : 'sous'} ${e.threshold})`
+      : e.type === 'drop' ? `${e.symbol} : ${Number(e.change).toFixed(1)} % aujourd'hui`
+      : `${e.symbol} : conseil ${LABEL[e.old] ?? e.old} → ${LABEL[e.new] ?? e.new}`;
+  const alerts = () => http.get(`${url}/api/alerts/pending`, (res) => {
+    let body = '';
+    res.on('data', (c) => (body += c));
+    res.on('end', () => {
+      try {
+        const events = JSON.parse(body) as Record<string, any>[];
+        if (events.length && Notification.isSupported()) {
+          new Notification({ title: `StockPulse : ${events.length} alerte(s)`, body: events.map(describe).join('\n') }).show();
+        }
+      } catch { /* réponse illisible : nouvel essai au prochain passage */ }
+    });
+  }).on('error', () => {});
+  setTimeout(alerts, 90000);
+  setInterval(alerts, 5 * 60000);
 }
 
 async function createWindow() {
@@ -97,7 +143,13 @@ app.on('second-instance', () => {
   }
 });
 
-app.whenReady().then(createWindow);
+app.setAppUserModelId('com.stockpulse.desktop');
+
+app.whenReady().then(() => {
+  createWindow();
+  // Mises à jour automatiques depuis les releases GitHub (téléchargement en arrière-plan, installation à la fermeture)
+  if (!isDev) autoUpdater.checkForUpdatesAndNotify().catch(() => {});
+});
 
 app.on('activate', () => {
   if (BrowserWindow.getAllWindows().length === 0) createWindow();

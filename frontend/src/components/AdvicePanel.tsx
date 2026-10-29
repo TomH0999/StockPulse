@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import { RefreshCw, Sparkles, TrendingDown, TrendingUp, Repeat, CalendarClock, Zap } from 'lucide-react';
-import { Advice, api, errorMessage } from '../services/api';
+import { Advice, api, errorMessage, pct } from '../services/api';
 import { useI18n, VERDICT_STYLE } from '../context';
+import { OrderModal } from './OrderModal';
 
 interface Props {
   symbol: string;
@@ -26,6 +27,9 @@ export function AdvicePanel({ symbol, onAdvice, onShowDate }: Props) {
   const [advice, setAdvice] = useState<Advice | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [order, setOrder] = useState<'buy' | 'sell' | 'reduce' | null>(null);
+  const [held, setHeld] = useState(false);
+  useEffect(() => { api.portfolio().then((p) => setHeld(p.lines.some((l) => l.symbol === symbol))).catch(() => {}); }, [symbol, order]);
 
   const load = (refresh = false) => {
     setLoading(true);
@@ -45,6 +49,7 @@ export function AdvicePanel({ symbol, onAdvice, onShowDate }: Props) {
 
   return (
     <div className="card p-5 space-y-4 h-full">
+      {order && <OrderModal symbol={symbol} side={order} onClose={() => setOrder(null)} />}
       <div className="flex justify-between items-center gap-2">
         <h2 className="font-bold flex items-center gap-2"><Sparkles className="w-4 h-4 text-sky-500" />{t.adviceTitle}</h2>
         <button className="btn" onClick={() => load(true)} disabled={loading}>
@@ -67,7 +72,58 @@ export function AdvicePanel({ symbol, onAdvice, onShowDate }: Props) {
           <div className="h-2 rounded-full bg-gradient-to-r from-rose-500 via-slate-400 to-emerald-500 relative">
             <div className="absolute -top-1 w-1.5 h-4 rounded bg-slate-900 dark:bg-white shadow" style={{ left: `calc(${gauge}% - 3px)` }} />
           </div>
+          {advice.verification && (
+            <div className={`text-xs rounded-lg p-2 border ${advice.verification.status === 'verified' ? 'border-emerald-500/40 bg-emerald-500/5' : 'border-amber-500/40 bg-amber-500/5'}`}>
+              <b className={advice.verification.status === 'verified' ? 'up' : 'text-amber-600 dark:text-amber-400'}>
+                {advice.verification.status === 'verified' ? `✓ ${t.verified}` : `⚠ ${t.toVerify}`}
+              </b>
+              <span className="muted"> ({advice.verification.checked})</span>
+              {advice.verification.notes.map((n) => (
+                <div key={n}>{t[`note_${n}` as 'note_verdict_score_mismatch'].replace('{s}', `${advice.verification!.local_score > 0 ? '+' : ''}${advice.verification!.local_score}`)}</div>
+              ))}
+              {advice.verification.unverified.length > 0 && (
+                <div className="mt-1"><span className="muted">{t.unverifiedClaims} :</span>
+                  <ul className="list-disc pl-4">{advice.verification.unverified.map((u, i) => <li key={i}>{u}</li>)}</ul>
+                </div>
+              )}
+            </div>
+          )}
+          {advice.track_record && advice.track_record['6m']?.n > 0 && (
+            <div className="text-xs rounded-lg p-2 border border-slate-200 dark:border-slate-800">
+              <div className="muted mb-1">{t.trackRecord}</div>
+              <div className="flex flex-wrap gap-x-4">
+                {(['1m', '3m', '6m'] as const).map((h) => {
+                  const r = advice.track_record![h];
+                  return r.hit_rate === null ? null : (
+                    <span key={h}>{h === '6m' ? '6 m' : t[`p_${h}` as 'p_1m']} : <b className={r.hit_rate >= 55 ? 'up' : r.hit_rate < 45 ? 'down' : ''}>{r.hit_rate} %</b> {t.trHit}
+                      {r.avg_after_buy !== null && <span className="muted"> · {t.trAfterBuy} {pct(r.avg_after_buy)}</span>}</span>
+                  );
+                })}
+              </div>
+              {(advice.track_record['6m'].hit_rate ?? 100) < 45 && <div className="text-amber-600 dark:text-amber-400 mt-1">{t.trLow}</div>}
+            </div>
+          )}
           <p className="text-sm leading-relaxed">{advice.summary}</p>
+
+          <div className="flex flex-wrap gap-2">
+            <button className={advice.score >= 15 ? 'btn-primary' : 'btn'} onClick={() => setOrder('buy')}>{t.prepareBuy}</button>
+            {held && <button className={advice.verdict === 'REDUCE' ? 'btn-primary' : 'btn'} onClick={() => setOrder('reduce')}>{t.prepareReduce}</button>}
+            {held && <button className={advice.verdict === 'SELL' ? 'btn-primary' : 'btn'} onClick={() => setOrder('sell')}>{t.prepareSell}</button>}
+          </div>
+
+          <div className="text-xs rounded-lg p-2 border border-slate-200 dark:border-slate-800">
+            <div className="muted mb-1">{t.fundamentals}{advice.fundamentals && ` · ${advice.fundamentals.source}`}</div>
+            {advice.fundamentals ? (
+              <div className="grid grid-cols-2 gap-x-4 gap-y-0.5">
+                {([['f_pe', advice.fundamentals.pe, ''], ['f_margin', advice.fundamentals.net_margin, ' %'], ['f_debt', advice.fundamentals.debt_to_equity, ''],
+                  ['f_roe', advice.fundamentals.roe, ' %']] as const).map(([k, v, u]) => (
+                  <span key={k}>{t[k]} : <b>{v === null ? '–' : `${v.toFixed(1)}${u}`}</b></span>
+                ))}
+                <span>{t.f_earnings} : <b>{advice.fundamentals.next_earnings ? new Date(advice.fundamentals.next_earnings).toLocaleDateString(lang) : '–'}</b></span>
+                <span>{t.f_dividend} : <b>{advice.fundamentals.next_dividend ? `${new Date(advice.fundamentals.next_dividend.date).toLocaleDateString(lang)} (${advice.fundamentals.next_dividend.amount ?? '?'})` : '–'}</b></span>
+              </div>
+            ) : <span className="muted">{t.fundNeedKey}</span>}
+          </div>
 
           <Section icon={<TrendingUp className="w-3.5 h-3.5" />} title={t.opportunities} items={advice.opportunities} tone="up" />
           <Section icon={<TrendingDown className="w-3.5 h-3.5" />} title={t.threats} items={advice.threats} tone="down" />

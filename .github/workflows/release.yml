@@ -19,11 +19,16 @@ jobs:
         with:
           python-version: "3.11"
 
+      - name: Tests du moteur
+        working-directory: backend
+        run: |
+          pip install -r requirements.txt -r requirements-dev.txt pyinstaller
+          python -m pytest -q tests
+
       - name: Compiler le moteur Python
         working-directory: backend
         run: |
-          pip install -r requirements.txt pyinstaller
-          pyinstaller --noconfirm --onedir --name stockpulse-backend --add-data "../market_news.db;." --collect-submodules uvicorn main.py
+          pyinstaller --noconfirm --onedir --name stockpulse-backend --add-data "../market_news.db;." --add-data "catalog;catalog" --add-data "catalog_sources;catalog_sources" --collect-submodules uvicorn main.py
 
       - uses: actions/setup-node@v4
         with:
@@ -36,6 +41,11 @@ jobs:
         run: |
           npm ci
           npm run electron:build
+
+      - name: Empreinte SHA-256
+        working-directory: frontend/release
+        shell: pwsh
+        run: Get-ChildItem *.exe | ForEach-Object { "$((Get-FileHash $_ -Algorithm SHA256).Hash.ToLower())  $($_.Name)" } | Out-File -Encoding ascii SHA256SUMS.txt
 
       - uses: actions/upload-artifact@v4
         with:
@@ -53,5 +63,9 @@ jobs:
           tag_name: ${{ steps.version.outputs.tag }}
           name: StockPulse ${{ steps.version.outputs.tag }}
           target_commitish: ${{ github.sha }}
-          files: frontend/release/*.exe
+          files: |
+            frontend/release/*.exe
+            frontend/release/*.blockmap
+            frontend/release/latest.yml
+            frontend/release/SHA256SUMS.txt
           generate_release_notes: true

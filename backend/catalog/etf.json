@@ -1,0 +1,22 @@
+[
+{"symbol": "C40.PA", "name": "Amundi Index Solutions - AMUNDI CAC 40 ESG UCITS ETF DR - EUR (C)", "pea": true},
+{"symbol": "CAC.PA", "name": "Amundi CAC 40 UCITS ETF Dist", "pea": true},
+{"symbol": "CL2.PA", "name": "Amundi MSCI USA Daily (2x) Leveraged UCITS ETF Acc", "pea": true},
+{"symbol": "CW8.PA", "name": "Amundi Index Solutions - Amundi MSCI World Swap UCITS ETF EUR Acc", "pea": true},
+{"symbol": "DCAM.PA", "name": "Amundi PEA Monde (MSCI World) UCITS ETF", "pea": true},
+{"symbol": "ESE.PA", "name": "BNP Paribas Easy S&P 500 UCITS ETF EUR C", "pea": true},
+{"symbol": "ETZ.PA", "name": "BNP Paribas Easy Stoxx Europe 600 UCITS ETF EUR C", "pea": true},
+{"symbol": "EWLD.PA", "name": "Amundi Index Solutions - Amundi MSCI World Swap UCITS ETF EUR Dist", "pea": true},
+{"symbol": "LQQ.PA", "name": "Amundi Nasdaq-100 Daily (2x) Leveraged UCITS ETF Acc", "pea": true},
+{"symbol": "MEUD.PA", "name": "Amundi Core Stoxx Europe 600 UCITS ETF Acc", "pea": true},
+{"symbol": "OBLI.PA", "name": "Amundi PEA Euro Court Terme UCITS ETF", "pea": true},
+{"symbol": "PAEEM.PA", "name": "Amundi PEA Émergent (MSCI Emerging) ESG Transition UCITS ETF Acc", "pea": true},
+{"symbol": "PANX.PA", "name": "Amundi PEA US Tech Screened UCITS ETF - Acc", "pea": true},
+{"symbol": "PCEU.PA", "name": "Amundi PEA MSCI Europe UCITS ETF Acc", "pea": true},
+{"symbol": "PE500.PA", "name": "Amundi PEA S&P 500 Screened UCITS ETF - Acc", "pea": true},
+{"symbol": "PSP5.PA", "name": "Amundi PEA S&P 500 UCITS ETF Acc", "pea": true},
+{"symbol": "PTPXE.PA", "name": "Amundi PEA Japon (TOPIX) UCITS ETF EUR Acc", "pea": true},
+{"symbol": "PUST.PA", "name": "Amundi PEA Nasdaq-100 UCITS ETF Acc", "pea": true},
+{"symbol": "RS2K.PA", "name": "Amundi Index Solutions - Amundi Russell 2000 ETF-C EUR", "pea": true},
+{"symbol": "WPEA.PA", "name": "iShares MSCI World Swap PEA UCITS ETF", "pea": true}
+]
