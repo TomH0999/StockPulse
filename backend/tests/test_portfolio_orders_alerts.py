@@ -254,3 +254,27 @@ def test_catalog_prefers_euro_listing():
     syms = set(catalog.symbols())
     assert "CMBT.BR" in syms and "CMBTO.OL" not in syms and "STLAP.PA" in syms and "STLAM.MI" not in syms
     assert "CMBTO.OL" in next(e for e in catalog.entries() if e["symbol"] == "CMBT.BR")["alternatives"]
+
+
+def test_fx_module_and_eur_everywhere(market, monkeypatch):
+    from fastapi.testclient import TestClient
+
+    import main
+    from services import fx, rebalance, screener
+    fx._cache.clear()
+    fx._cache["EUR"] = (float("inf"), 1.0)
+    market["prices"].update({"USDEUR=X": 0.9, "GBPEUR=X": 1.2})
+    assert fx.rate("EUR") == 1 and fx.rate("USD") == 0.9 and fx.rate("GBp") == pytest.approx(0.012)
+    assert fx.to_eur(100, "USD") == 90 and fx.rate("XYZ") is None
+    c = TestClient(main.app, base_url="http://127.0.0.1")
+    q = c.get("/api/market/quote/AAPL").json()
+    assert q["price_eur"] == pytest.approx(270) and q["fx"] == 0.9
+    monkeypatch.setattr(screener, "snapshot", lambda max_age=0: ({"AAPL": {"price": 300, "currency": "USD"}, "MC.PA": {"price": 400, "currency": "EUR"}}, 1))
+    rows = {r["symbol"]: r for r in c.get("/api/screener").json()["rows"]}
+    assert rows["AAPL"]["price_eur"] == pytest.approx(270) and rows["MC.PA"]["price_eur"] == 400
+    # rééquilibrage : quantités calculées avec le prix en euros
+    deposit(10000)
+    portfolio.add_movement("buy", "2026-01-05", "AAPL", 20, 300)  # 5 400 €
+    monkeypatch.setattr(rebalance.advisor, "cached_verdicts", lambda: {"AAPL": {"verdict": "SELL", "score": -60, "confidence": "high", "engine": "local", "generated_at": 0}})
+    act = next(a for a in rebalance.plan(portfolio.summary())["actions"] if a["symbol"] == "AAPL")
+    assert act["side"] == "sell" and act["quantity"] == 20 and act["amount"] == pytest.approx(20 * 270)

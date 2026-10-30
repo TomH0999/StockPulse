@@ -6,6 +6,7 @@ from datetime import date
 import catalog
 import store
 from services import advisor, portfolio, screener, yahoo
+from services import fx as fxmod
 
 MAX_LINE = 20  # % maximum d'une ligne dans le PEA
 
@@ -49,7 +50,7 @@ def plan(symbol: str, side: str, amount: float | None = None, quantity: float | 
     line = next((l for l in pf["lines"] if l["symbol"] == sym), None)
     held = sum(l["quantity"] for l in pf["lines"] if l["symbol"] == sym)
     adv = advisor.cached_verdicts().get(sym)
-    fx = portfolio._fx({q.get("currency") or "EUR"}).get(q.get("currency") or "EUR") or 1.0  # euros pour 1 unité de devise
+    fx = fxmod.rate(q.get("currency")) or 1.0  # euros pour 1 unité de devise
     vol = (screener.snapshot(max_age=86400)[0].get(sym) or {}).get("volatility") or 30.0
     move = min(0.20, max(0.05, 1.5 * vol / 100 / math.sqrt(12)))  # 1,5 écart-type mensuel, borné 5-20 %
     warnings = []

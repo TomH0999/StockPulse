@@ -31,8 +31,9 @@ const BOARDS: Board[] = [
   { key: 'b_dip', value: (r) => r.from_high, desc: false, show: (r) => pct(r.from_high), filter: (r) => (r.advice?.score ?? 0) >= 15 },
   { key: 'b_lowvol', value: (r) => r.volatility, desc: false, show: (r) => (r.volatility ? `${r.volatility}%` : '–') },
   { key: 'b_sell', value: (r) => r.advice?.score, desc: false, show: score, filter: (r) => !!r.advice && r.advice.score < 0 },
-  { key: 'b_cheapest', value: (r) => r.price, desc: false, show: (r) => `${r.price?.toFixed(2)} ${r.currency}` },
-  { key: 'b_dearest', value: (r) => r.price, desc: true, show: (r) => `${r.price?.toFixed(2)} ${r.currency}` },
+  // prix comparés en euros (devises différentes)
+  { key: 'b_cheapest', value: (r) => r.price_eur, desc: false, show: (r) => `${r.price_eur?.toFixed(2)} €` },
+  { key: 'b_dearest', value: (r) => r.price_eur, desc: true, show: (r) => `${r.price_eur?.toFixed(2)} €` },
 ];
 
 export function LeaderboardView({ onOpen }: { onOpen: (symbol: string) => void }) {

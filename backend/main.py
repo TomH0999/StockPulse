@@ -11,7 +11,7 @@ from fastapi.staticfiles import StaticFiles
 
 import catalog
 import store
-from services import advisor, ai_pool, alerts, fundamentals, health, news, orders, portfolio, scheduler, screener, yahoo
+from services import advisor, ai_pool, alerts, fundamentals, fx, health, news, orders, portfolio, scheduler, screener, yahoo
 
 store.init()
 threading.Thread(target=news.migrate, daemon=True).start()
@@ -47,14 +47,22 @@ def health_full(refresh: bool = False):
     return health.run(refresh)
 
 
+def _with_eur(q: dict) -> dict:
+    """Ajoute l'équivalent en euros (affichage et comparaisons homogènes)."""
+    if q.get("price") is not None and not q.get("error"):
+        r = fx.rate(q.get("currency"))
+        q = {**q, "fx": r, "price_eur": round(q["price"] * r, 4) if r else None, "change_eur": round(q["change"] * r, 4) if r else None}
+    return q
+
+
 @app.get("/api/market/quote/{symbol}")
 def get_quote(symbol: str):
-    return _yahoo(yahoo.quote, symbol)
+    return _with_eur(_yahoo(yahoo.quote, symbol))
 
 
 @app.get("/api/market/quotes")
 def get_quotes(symbols: str):
-    return yahoo.quotes([s for s in symbols.split(",") if s.strip()][:50])
+    return [_with_eur(q) for q in yahoo.quotes([s for s in symbols.split(",") if s.strip()][:50])]
 
 
 @app.get("/api/market/history/{symbol}")
@@ -141,7 +149,13 @@ def get_screener():
     """Toutes les entreprises du catalogue avec performances, volatilité et dernier conseil (classement, liste)."""
     snap, updated = screener.snapshot()
     cache = advisor.cached_verdicts()
-    rows = [{**e, **snap.get(e["symbol"], {}), "advice": cache.get(e["symbol"])} for e in catalog.entries()]
+    rates = fx.rates({(snap.get(e["symbol"]) or {}).get("currency") for e in catalog.entries()} - {None, ""})
+    rows = []
+    for e in catalog.entries():
+        r = {**e, **snap.get(e["symbol"], {}), "advice": cache.get(e["symbol"])}
+        rate = rates.get(r.get("currency") or "EUR", 1.0 if not r.get("currency") else None)
+        r["price_eur"] = round(r["price"] * rate, 4) if r.get("price") and rate else None
+        rows.append(r)
     return {"updated": int(updated), "rows": rows}
 
 

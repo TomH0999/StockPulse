@@ -5,7 +5,7 @@ from datetime import date
 
 import catalog
 import store
-from services import advisor, rebalance, yahoo
+from services import advisor, fx, rebalance, yahoo
 
 PEA_CEILING = 150_000
 
@@ -160,30 +160,22 @@ def symbols() -> list[str]:
     return [l["symbol"] for l in lines()]
 
 
-def _fx(currencies: set[str]) -> dict[str, float]:
-    """Taux de conversion vers l'euro (GBp = pence)."""
-    rates = {"EUR": 1.0}
-    for c in currencies - {"EUR"}:
-        base, div = ("GBP", 100) if c == "GBp" else (c, 1)
-        try:
-            rates[c] = yahoo.quote(f"{base}EUR=X")["price"] / div
-        except Exception:
-            rates[c] = None
-    return rates
+def _fx(currencies: set[str]) -> dict[str, float | None]:
+    return fx.rates(currencies)
 
 
 def summary() -> dict:
     led = ledger()
     held = {s: p for s, p in led["positions"].items() if p["quantity"] > EPS}
     quotes = {q["symbol"]: q for q in yahoo.quotes(list(held))} if held else {}
-    fx = _fx({(quotes.get(s) or {}).get("currency") or "EUR" for s in held})
+    rates = _fx({(quotes.get(s) or {}).get("currency") or "EUR" for s in held})
     verdicts = advisor.cached_verdicts()
     info = {e["symbol"]: e for e in catalog.entries()}
     out, value_total, cost_total, day_change = [], 0.0, 0.0, 0.0
     for s, p in sorted(held.items()):
         q = quotes.get(s, {})
         ccy = q.get("currency") or "EUR"
-        rate = fx.get(ccy)
+        rate = rates.get(ccy)
         price = q.get("price") or 0
         qty, cost = p["quantity"], p["cost"]
         value = qty * price * (rate or 0)
@@ -265,7 +257,8 @@ def benchmark(period: str = "1y", index: str = "^FCHI") -> dict:
     qty = {}
     for r in rows:
         qty[r["symbol"]] = qty.get(r["symbol"], 0) + r["quantity"]
-    values = [sum(qty[s] * series[s][d] for s in qty) for d in days]
+    rate = {s: fx.rate(yahoo.quote(s).get("currency")) or 1.0 for s in qty}
+    values = [sum(qty[s] * series[s][d] * rate[s] for s in qty) for d in days]
     return {"index": index, "series": [{"day": d, "portfolio": round(v / values[0] * 100, 2), "index": round(idx[d] / idx[days[0]] * 100, 2)}
                                        for d, v in zip(days, values)]}
 

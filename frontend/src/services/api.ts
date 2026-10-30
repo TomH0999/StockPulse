@@ -23,6 +23,9 @@ export interface Quote {
   day_low: number;
   year_high: number;
   year_low: number;
+  fx?: number | null;
+  price_eur?: number | null;
+  change_eur?: number | null;
   error?: boolean;
 }
 
@@ -109,6 +112,7 @@ export interface CatalogEntry {
 export interface ScreenerRow extends CatalogEntry {
   currency?: string;
   price?: number;
+  price_eur?: number | null;
   chg_1d?: number;
   chg_1w?: number | null;
   chg_1m?: number | null;
@@ -307,4 +311,11 @@ export const notifyPortfolioChanged = () => window.dispatchEvent(new Event(PORTF
 export const onPortfolioChanged = (fn: () => void) => {
   window.addEventListener(PORTFOLIO_CHANGED, fn);
   return () => window.removeEventListener(PORTFOLIO_CHANGED, fn);
+};
+
+/** Prix dans sa devise, suivi de l'équivalent en euros quand la devise n'est pas l'euro : « 169,00 NOK (≈ 16,44 €) ». */
+export const priceWithEur = (price: number | undefined, currency: string | undefined, priceEur: number | null | undefined, lang: Lang) => {
+  if (price === undefined || price === null) return '–';
+  const native = formatPrice(price, currency || 'EUR', lang);
+  return !currency || currency === 'EUR' || !priceEur ? native : `${native} (≈ ${formatPrice(priceEur, 'EUR', lang)})`;
 };

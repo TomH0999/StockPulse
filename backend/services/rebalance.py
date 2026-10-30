@@ -3,7 +3,7 @@ puis ordres concrets pour s'en rapprocher (ventes d'abord, petites opérations �
 import math
 
 import catalog
-from services import advisor, orders, screener
+from services import advisor, fx, orders, screener
 
 MAX_LINE, MAX_SECTOR, MIN_LINES, CASH_TARGET = 0.20, 0.35, 5, 0.03
 CONF = {"low": 0.5, "medium": 0.8, "high": 1.0}
@@ -85,8 +85,9 @@ def plan(summary: dict) -> dict:
 
     target = _cap(raw, sector, 1 - CASH_TARGET)
     min_trade = max(150.0, 0.02 * total)
-    prices = {s: l["price"] for s, l in held.items()}
-    prices.update({s: (snap.get(s) or {}).get("price") for s in picked})
+    # prix en euros (les écarts de poids sont en euros)
+    prices = {s: l["price"] * (l.get("fx") or 1.0) for s, l in held.items()}
+    prices.update({s: fx.to_eur((snap.get(s) or {}).get("price"), (snap.get(s) or {}).get("currency")) for s in picked})
 
     actions = []
     for s in sorted(set(held) | set(target)):

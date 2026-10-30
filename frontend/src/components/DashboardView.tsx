@@ -115,7 +115,8 @@ export function DashboardView({ symbol, onSelect, settingsVersion }: Props) {
       ) : (
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           {kpi(t.price, quote ? formatPrice(quote.price, cur, lang) : '…',
-            quote && <span className={`font-bold ${up ? 'up' : 'down'}`}>{up ? '+' : ''}{quote.change.toFixed(2)} ({up ? '+' : ''}{quote.change_percent.toFixed(2)}%)</span>)}
+            quote && <><span className={`font-bold ${up ? 'up' : 'down'}`}>{up ? '+' : ''}{quote.change.toFixed(2)} ({up ? '+' : ''}{quote.change_percent.toFixed(2)}%)</span>
+              {cur !== 'EUR' && quote.price_eur && <span className="muted"> · ≈ {formatPrice(quote.price_eur, 'EUR', lang)}</span>}</>)}
           {kpi(t.volume, quote ? quote.volume.toLocaleString(lang) : '…',
             quote && <span className="muted">{t.dayRange} : {quote.day_low.toFixed(2)} – {quote.day_high.toFixed(2)}</span>)}
           {kpi(t.yearRange, quote ? `${quote.year_low.toFixed(2)} – ${quote.year_high.toFixed(2)}` : '…',

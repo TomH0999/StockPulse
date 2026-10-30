@@ -1,6 +1,6 @@
 import { Fragment, useEffect, useMemo, useState } from 'react';
 import { Building2, Search, Star } from 'lucide-react';
-import { api, pct, ScreenerRow } from '../services/api';
+import { api, pct, priceWithEur, ScreenerRow } from '../services/api';
 import { useI18n, VERDICT_LABEL } from '../context';
 import { useScreener } from '../hooks/useScreener';
 import { Sparkline } from './Sparkline';
@@ -31,7 +31,7 @@ export function CatalogView({ onOpen }: { onOpen: (symbol: string) => void }) {
   const list = useMemo(() => {
     const q = fold(query.trim());
     const val = (r: ScreenerRow): number | string =>
-      sort.col === 'name' ? r.name : sort.col === 'score' ? r.advice?.score ?? -999 : (r[sort.col] as number | null) ?? -999;
+      sort.col === 'name' ? r.name : sort.col === 'score' ? r.advice?.score ?? -999 : sort.col === 'price' ? r.price_eur ?? -999 : (r[sort.col] as number | null) ?? -999;
     return applyFilters(rows, filters)
       .filter((r) => (!q || fold(`${r.symbol} ${r.name}`).includes(q)) && (!verdict || r.advice?.verdict === verdict))
       .sort((a, b) => {
@@ -94,7 +94,7 @@ export function CatalogView({ onOpen }: { onOpen: (symbol: string) => void }) {
                       </div>
                       <div className="text-xs muted truncate max-w-[260px]">{r.name}</div>
                     </td>
-                    <td className="px-3 py-2 text-right whitespace-nowrap">{r.price ? `${r.price.toFixed(2)} ${r.currency}` : '–'}</td>
+                    <td className="px-3 py-2 text-right whitespace-nowrap">{r.price ? priceWithEur(r.price, r.currency, r.price_eur, lang) : '–'}</td>
                     {(['chg_1d', 'chg_1m', 'chg_ytd', 'chg_1y'] as const).map((c) => (
                       <td key={c} className={`px-3 py-2 text-right ${(r[c] ?? 0) >= 0 ? 'up' : 'down'}`}>{pct(r[c])}</td>
                     ))}

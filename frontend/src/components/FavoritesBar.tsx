@@ -1,5 +1,5 @@
 import { X, Star } from 'lucide-react';
-import { Favorite, Quote } from '../services/api';
+import { Favorite, priceWithEur, Quote } from '../services/api';
 import { useI18n, VERDICT_LABEL, VERDICT_STYLE } from '../context';
 
 interface Props {
@@ -56,7 +56,7 @@ export function FavoritesBar({ favorites, quotes, active, onSelect, onRemove, on
                 <div className="text-[11px] muted truncate max-w-[160px]">{f.name || q?.short_name}</div>
                 {q && !q.error && (
                   <div className="text-xs mt-0.5 flex gap-2">
-                    <span className="font-semibold">{q.price.toFixed(2)}</span>
+                    <span className="font-semibold">{priceWithEur(q.price, q.currency, q.price_eur, lang)}</span>
                     <span className={up ? 'up' : 'down'}>{up ? '+' : ''}{q.change_percent.toFixed(2)}%</span>
                   </div>
                 )}
