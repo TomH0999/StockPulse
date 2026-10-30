@@ -276,6 +276,11 @@ def order_costs(symbol: str, side: str, quantity: float, price: float):
     return orders.costs(symbol, side, gross, q.get("currency") or "EUR")
 
 
+@app.delete("/api/portfolio")
+def reset_portfolio():
+    return portfolio.reset()
+
+
 @app.delete("/api/portfolio/movements/{movement_id}")
 def delete_movement(movement_id: int):
     try:

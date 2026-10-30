@@ -111,3 +111,10 @@ def test_dividend_calendar(market, monkeypatch):
     cal = dividends.calendar()
     assert cal["received_total"] == 10 and cal["upcoming"][0]["amount"] == 15 and cal["upcoming"][0]["estimated"]
     assert cal["yield"] == pytest.approx(15 / 800 * 100, abs=0.01)
+
+
+def test_reset_portfolio(market):
+    portfolio.add_movement("deposit", "2026-01-02", amount=1000)
+    portfolio.add_movement("buy", "2026-01-03", "MC.PA", 1, 400, 2)
+    s = portfolio.reset()
+    assert not portfolio.movements() and not s["lines"] and s["cash"] == 0

@@ -310,6 +310,7 @@ export const api = {
   saveObjectives: async (o: Partial<Objectives>) => (await apiClient.put<Objectives>('/objectives', o)).data,
   orderCosts: (symbol: string, side: string, quantity: number, price: number) =>
     get<{ broker: number; ttf: number; fx: number; total: number }>('/orders/costs', { symbol, side, quantity, price }),
+  resetPortfolio: async () => (await apiClient.delete<Portfolio>('/portfolio')).data,
   deleteMovement: async (id: number) => (await apiClient.delete<Portfolio>(`/portfolio/movements/${id}`)).data,
   screener: () => get<{ updated: number; rows: ScreenerRow[] }>('/screener'),
   aiSettings: () => get<AiSettings>('/settings/ai'),

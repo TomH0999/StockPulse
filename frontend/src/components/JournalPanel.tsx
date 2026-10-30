@@ -115,7 +115,10 @@ export function JournalPanel({ form, setForm }: { form: MoveForm; setForm: (f: M
       </div>
 
       <div className="card p-4 space-y-2">
-        <h2 className="font-bold">{t.mvJournal}</h2>
+        <div className="flex items-center justify-between">
+          <h2 className="font-bold">{t.mvJournal}</h2>
+          <button className="text-xs text-rose-500 hover:underline cursor-pointer" onClick={() => window.confirm(t.resetPeaConfirm) && run(api.resetPortfolio())}>{t.resetPea}</button>
+        </div>
         <div className="max-h-[560px] overflow-y-auto">
           <table className="w-full text-xs">
             <tbody>

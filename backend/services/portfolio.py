@@ -157,6 +157,14 @@ def delete_movement(movement_id: int) -> dict:
     return summary()
 
 
+def reset() -> dict:
+    """Remet le PEA à zéro : mouvements, ordres et anciennes lignes (l'historique se recalcule depuis le journal)."""
+    with store.connect() as conn:
+        for table in ("pea_movements", "orders_log", "holdings"):
+            conn.execute(f"DELETE FROM {table}")
+    return summary()
+
+
 def _migrate_legacy():
     """Versions < 2.1 : lignes et liquidités saisies à la main, converties en versement + achats."""
     if store.get_setting("ledger_migrated"):
