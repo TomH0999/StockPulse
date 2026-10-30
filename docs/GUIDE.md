@@ -105,7 +105,22 @@ Les opportunités évoluent chaque jour : consultez **Tableau de bord → Opport
 d'achat / Achats les plus fiables / Qualité en solde** (filtre « Éligibles PEA uniquement »). Instantané au moment de la
 publication de cette version (analyse locale, sans IA) :
 
-OPPORTUNITIES_TABLE
+Analyse du 30/10/2026 ; filtre : éligible PEA, conseil « Achat » ou « Achat fort » (score ≥ 25), fiabilité passée à 3 mois ≥ 55 %.
+
+| Valeur | Secteur | Conseil | Score | Fiabilité 3 mois | Hausse 3 mois | Devise |
+|---|---|---|---|---|---|---|
+| Lottomatica Group S.p.A. (LTMC.MI) | Consumer Cyclical | Achat fort | +62 | 59 % | +8.6 % | EUR |
+| Frontline plc (FRO.OL) | Energy | Achat fort | +55 | 63 % | +37.1 % | NOK |
+| Klaveness Combination Carriers ASA (KCC.OL) | Industrials | Achat fort | +53 | 61 % | +11.9 % | NOK |
+| Eni S.p.A. (ENI.MI) | Energy | Achat fort | +51 | 58 % | +12.1 % | EUR |
+| Evonik Industries AG (EVK.DE) | Basic Materials | Achat fort | +49 | 56 % | +21.2 % | EUR |
+| Technoprobe S.p.A. (TPRO.MI) | Technology | Achat fort | +47 | 57 % | -5.1 % | EUR |
+| Smartoptics Group ASA (SMOP.OL) | Technology | Achat fort | +45 | 58 % | +17.0 % | NOK |
+| Iberdrola, S.A. (IBE.MC) | Utilities | Achat fort | +45 | 65 % | +6.7 % | EUR |
+| Höegh Autoliners ASA (HAUTO.OL) | Industrials | Achat fort | +45 | 57 % | +7.4 % | NOK |
+| Jyske Bank A/S (JYSK.CO) | Financial Services | Achat fort | +44 | 56 % | +5.2 % | DKK |
+
+Ces signaux reposent surtout sur la tendance des cours (aucune analyse IA ni fondamentaux dans cet instantané) ; plusieurs valeurs sont cotées en couronnes (NOK, DKK) : vérifiez que votre courtier y donne accès dans le PEA.
 
 Avant d'acheter : ouvrez l'analyse, lisez les menaces, la fiabilité passée de la valeur et les articles récents ; préférez
 plusieurs achats échelonnés à un achat unique.
