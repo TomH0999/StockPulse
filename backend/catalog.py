@@ -64,8 +64,34 @@ def entries() -> list[dict]:
             status = upd.get("status", {})
             for e in out:
                 e["status"] = (status.get(e["symbol"]) or {}).get("status")
-            _entries = out
+            _entries = _dedupe_listings(out)
         return _entries
+
+
+# Une même société (même ISIN) cotée sur plusieurs places : on garde la cotation en euros la plus liquide
+LISTING_PREFERENCE = ["PA", "AS", "BR", "DE", "MI", "MC", "LS", "IR", "HE", "VI", "F", "OL", "ST", "CO", "WA"]
+
+
+def _rank(sym: str) -> int:
+    sfx = sym.rsplit(".", 1)[-1] if "." in sym else ""
+    return LISTING_PREFERENCE.index(sfx) if sfx in LISTING_PREFERENCE else len(LISTING_PREFERENCE)
+
+
+def _dedupe_listings(entries: list[dict]) -> list[dict]:
+    best: dict[str, dict] = {}
+    for e in entries:
+        if e["isin"] and e["market"] != "etf":
+            cur = best.get(e["isin"])
+            if cur is None or _rank(e["symbol"]) < _rank(cur["symbol"]):
+                best[e["isin"]] = e
+    out = []
+    for e in entries:
+        keep = best.get(e["isin"]) if e["isin"] and e["market"] != "etf" else e
+        if keep is e:
+            e["core"] = e["core"] or any(x["core"] for x in entries if x["isin"] == e["isin"] and e["isin"])
+            e["alternatives"] = [x["symbol"] for x in entries if e["isin"] and x["isin"] == e["isin"] and x is not e]
+            out.append(e)
+    return out
 
 
 def symbols() -> list[str]:

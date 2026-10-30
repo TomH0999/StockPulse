@@ -19,11 +19,20 @@ EPS = 1e-9
 def movements() -> list[dict]:
     _migrate_legacy()
     with store.connect() as conn:
-        return [dict(r) for r in conn.execute("SELECT id, day, type, symbol, quantity, price, fees, amount FROM pea_movements ORDER BY day, id")]
+        rows = [dict(r) for r in conn.execute("SELECT id, day, type, symbol, quantity, price, fees, amount, fx FROM pea_movements ORDER BY day, id")]
+    missing = [m for m in rows if m["type"] in ("buy", "sell") and m["fx"] is None]
+    if missing:  # mouvements des versions précédentes : taux de change actuel
+        for m in missing:
+            m["fx"] = _rate_for(m["symbol"])
+        with store.connect() as conn:
+            for m in missing:
+                conn.execute("UPDATE pea_movements SET fx = ? WHERE id = ?", (m["fx"], m["id"]))
+    return rows
 
 
 def ledger(rows: list[dict] | None = None) -> dict:
-    """Rejoue le journal dans l'ordre chronologique. Les frais d'achat sont inclus dans le prix de revient (usage courtier)."""
+    """Rejoue le journal dans l'ordre chronologique. Tout est tenu en euros : prix × taux de change du jour du mouvement,
+    frais (en euros) inclus dans le prix de revient (usage courtier)."""
     rows = movements() if rows is None else sorted(rows, key=lambda m: (m["day"], m.get("id") or 0))
     pos: dict[str, dict] = {}
     led = {"cash": 0.0, "deposits": 0.0, "withdrawals": 0.0, "realized": 0.0, "dividends": 0.0, "fees": 0.0, "positions": pos}
@@ -45,22 +54,24 @@ def ledger(rows: list[dict] | None = None) -> dict:
             p = pos.setdefault(m["symbol"], _new_pos(m["day"]))
             if p["quantity"] < EPS:
                 p["since"] = m["day"]
+            gross = m["quantity"] * m["price"] * (m.get("fx") or 1.0)
             p["quantity"] += m["quantity"]
-            p["cost"] += m["quantity"] * m["price"] + fees
-            led["cash"] -= m["quantity"] * m["price"] + fees
+            p["cost"] += gross + fees
+            led["cash"] -= gross + fees
         elif t == "sell":
             p = pos.setdefault(m["symbol"], _new_pos(m["day"]))
             if m["quantity"] > p["quantity"] + EPS:
                 raise ValueError(f"Vente de {m['quantity']} {m['symbol']} le {m['day']} supérieure à la quantité détenue ({p['quantity']:g})")
             pru = p["cost"] / p["quantity"]
-            gain = m["quantity"] * (m["price"] - pru) - fees
+            gross = m["quantity"] * m["price"] * (m.get("fx") or 1.0)
+            gain = gross - m["quantity"] * pru - fees
             p["realized"] += gain
             led["realized"] += gain
             p["quantity"] -= m["quantity"]
             p["cost"] -= m["quantity"] * pru
             if p["quantity"] < EPS:
                 p["quantity"], p["cost"] = 0.0, 0.0
-            led["cash"] += m["quantity"] * m["price"] - fees
+            led["cash"] += gross - fees
         if led["cash"] < -0.005:
             raise ValueError(f"Liquidités insuffisantes le {m['day']} : faites d'abord un versement")
     return led
@@ -70,8 +81,20 @@ def _new_pos(day):
     return {"quantity": 0.0, "cost": 0.0, "realized": 0.0, "dividends": 0.0, "since": day}
 
 
+def _rate_for(symbol: str | None) -> float:
+    """Taux de conversion vers l'euro de la devise de cotation d'une valeur (1 si euro ou inconnu)."""
+    if not symbol:
+        return 1.0
+    try:
+        ccy = yahoo.quote(symbol).get("currency") or "EUR"
+    except Exception:
+        return 1.0
+    return _fx({ccy}).get(ccy) or 1.0
+
+
 def add_movement(type: str, day: str, symbol: str | None = None, quantity: float | None = None, price: float | None = None,
-                 fees: float = 0.0, amount: float | None = None) -> dict:
+                 fees: float = 0.0, amount: float | None = None, fx: float | None = None) -> dict:
+    """Achat / vente : prix dans la devise de cotation, frais en euros ; fx = euros pour 1 unité de devise (taux du jour par défaut)."""
     if type not in TYPES:
         raise ValueError("Type de mouvement inconnu")
     if not re.match(r"^\d{4}-\d{2}-\d{2}$", day or "") or day > date.today().isoformat():
@@ -85,14 +108,19 @@ def add_movement(type: str, day: str, symbol: str | None = None, quantity: float
         amount = None
     elif not amount or amount <= 0:
         raise ValueError("Montant positif requis")
-    m = {"day": day, "type": type, "symbol": symbol.upper() if symbol else None, "quantity": quantity if type in ("buy", "sell") else None,
-         "price": price if type in ("buy", "sell") else None, "fees": fees, "amount": amount}
+    trade = type in ("buy", "sell")
+    if trade and fx is None:
+        fx = _rate_for(symbol)
+    if trade and (not fx or fx <= 0):
+        raise ValueError("Taux de change invalide")
+    m = {"day": day, "type": type, "symbol": symbol.upper() if symbol else None, "quantity": quantity if trade else None,
+         "price": price if trade else None, "fees": fees, "amount": amount, "fx": fx if trade else None}
     led = ledger(movements() + [{**m, "id": 10**12}])  # refuse un mouvement qui rendrait le journal incohérent
     if type == "deposit" and led["deposits"] > PEA_CEILING + 0.005:
         raise ValueError(f"Plafond de versements du PEA dépassé ({PEA_CEILING:,.0f} €)".replace(",", " "))
     with store.connect() as conn:
-        conn.execute("INSERT INTO pea_movements (day, type, symbol, quantity, price, fees, amount) VALUES (?, ?, ?, ?, ?, ?, ?)",
-                     (m["day"], m["type"], m["symbol"], m["quantity"], m["price"], m["fees"], m["amount"]))
+        conn.execute("INSERT INTO pea_movements (day, type, symbol, quantity, price, fees, amount, fx) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                     (m["day"], m["type"], m["symbol"], m["quantity"], m["price"], m["fees"], m["amount"], m["fx"]))
     return summary()
 
 
@@ -117,8 +145,8 @@ def _migrate_legacy():
         if deposits > 0:
             conn.execute("INSERT INTO pea_movements (day, type, amount, fees) VALUES (?, 'deposit', ?, 0)", (today, round(deposits, 2)))
         for h in old:
-            conn.execute("INSERT INTO pea_movements (day, type, symbol, quantity, price, fees) VALUES (?, 'buy', ?, ?, ?, 0)",
-                         (today, h["symbol"], h["quantity"], h["avg_price"]))
+            conn.execute("INSERT INTO pea_movements (day, type, symbol, quantity, price, fees, fx) VALUES (?, 'buy', ?, ?, ?, 0, 1)",
+                         (today, h["symbol"], h["quantity"], h["avg_price"]))  # ancien PRU saisi en euros
         conn.execute("DELETE FROM holdings")
     store.set_setting("ledger_migrated", "1")
 
@@ -159,7 +187,7 @@ def summary() -> dict:
         price = q.get("price") or 0
         qty, cost = p["quantity"], p["cost"]
         value = qty * price * (rate or 0)
-        cost_eur = cost * (rate or 1)  # PRU saisi dans la devise de cotation
+        cost_eur = cost  # prix de revient tenu en euros (taux du jour de chaque achat)
         adv = verdicts.get(s)
         eligible = (info.get(s) or {}).get("pea", "." in s and s.rsplit(".", 1)[-1] in ("PA", "DE", "AS", "MC", "MI", "BR", "LS", "IR", "HE", "ST", "CO", "OL", "VI"))
         alerts = []
@@ -180,7 +208,7 @@ def summary() -> dict:
                     "quantity": round(qty, 6), "avg_price": round(cost / qty, 4), "price": price, "change_percent": q.get("change_percent"),
                     "value": round(value, 2), "cost": round(cost_eur, 2), "pnl": round(value - cost_eur, 2),
                     "pnl_percent": round((value / cost_eur - 1) * 100, 2) if cost_eur else 0.0,
-                    "realized": round(p["realized"] * (rate or 1), 2), "dividends": round(p["dividends"], 2), "since": p["since"],
+                    "realized": round(p["realized"], 2), "dividends": round(p["dividends"], 2), "since": p["since"],
                     "advice": adv, "alerts": alerts, "in_total": True})
     cash = round(led["cash"], 2)
     total = value_total + cash

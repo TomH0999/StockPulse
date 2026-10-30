@@ -80,7 +80,8 @@ def test_summary_alerts_and_currency(market):
     assert "big_drop" in by["AI.PA"]["alerts"]
     aapl = by["AAPL"]
     assert "not_pea" in aapl["alerts"] and aapl["value"] == pytest.approx(2 * 300 * 0.9) and aapl["cost"] == pytest.approx(400 * 0.9)
-    assert s["cash"] == 300 and s["total"] == pytest.approx(4000 + 900 + 540 + 300)
+    assert s["cash"] == pytest.approx(340)  # versement 700 € - achat 2 × 200 $ × 0,9
+    assert s["total"] == pytest.approx(4000 + 900 + 540 + 340)
     assert sum(l["weight"] for l in s["lines"]) + s["cash"] / s["total"] * 100 == pytest.approx(100, abs=0.2)
     assert s["day_change"] == pytest.approx(10 * 1 + 5 * -12 + 2 * 1 * 0.9)
 
@@ -228,3 +229,28 @@ def test_cap_respects_limits_and_budget():
     assert w["A"] + w["B"] <= 0.35 + 1e-6
     two = rebalance._cap({"A": 3, "C": 1}, sectors, 0.97)  # trop peu de lignes : pas de vente forcée en liquidités
     assert sum(two.values()) == pytest.approx(0.97) and two["A"] > two["C"]
+
+
+def test_foreign_currency_buy_debits_euros(market):
+    """Cas réel : 5 actions cotées 169 NOK ≈ 82 € ; les liquidités doivent baisser d'environ 82 €, pas de 845 €."""
+    market["prices"]["CMBTO.OL"] = 169.0
+    market["currency"]["CMBTO.OL"] = "NOK"
+    market["prices"]["NOKEUR=X"] = 0.0973
+    deposit(5000)
+    s = portfolio.add_movement("buy", "2026-01-05", "CMBTO.OL", 5, 170.4, 7)
+    line = s["lines"][0]
+    assert s["cash"] == pytest.approx(5000 - 5 * 170.4 * 0.0973 - 7)
+    assert line["value"] == pytest.approx(5 * 169 * 0.0973, abs=0.01) and line["cost"] == pytest.approx(5 * 170.4 * 0.0973 + 7, abs=0.01)
+    assert line["avg_price"] == pytest.approx((5 * 170.4 * 0.0973 + 7) / 5, abs=1e-3)  # PRU en euros
+    plan = orders.plan("CMBTO.OL", "buy", amount=1000)
+    assert plan["quantity"] == pytest.approx((1000 - orders.fee(1000)) // (plan["limit"] * 0.0973))
+    assert plan["amount"] == pytest.approx(plan["quantity"] * plan["limit"] * 0.0973, abs=0.01) and "currency" in plan["warnings"]
+    s = portfolio.add_movement("sell", "2026-01-06", "CMBTO.OL", 5, 180, 0, fx=0.1)
+    assert s["realized"] == pytest.approx(5 * 180 * 0.1 - (5 * 170.4 * 0.0973 + 7), abs=0.01)
+
+
+def test_catalog_prefers_euro_listing():
+    import catalog
+    syms = set(catalog.symbols())
+    assert "CMBT.BR" in syms and "CMBTO.OL" not in syms and "STLAP.PA" in syms and "STLAM.MI" not in syms
+    assert "CMBTO.OL" in next(e for e in catalog.entries() if e["symbol"] == "CMBT.BR")["alternatives"]

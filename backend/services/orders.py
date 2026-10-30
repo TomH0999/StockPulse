@@ -49,6 +49,7 @@ def plan(symbol: str, side: str, amount: float | None = None, quantity: float | 
     line = next((l for l in pf["lines"] if l["symbol"] == sym), None)
     held = sum(l["quantity"] for l in pf["lines"] if l["symbol"] == sym)
     adv = advisor.cached_verdicts().get(sym)
+    fx = portfolio._fx({q.get("currency") or "EUR"}).get(q.get("currency") or "EUR") or 1.0  # euros pour 1 unité de devise
     vol = (screener.snapshot(max_age=86400)[0].get(sym) or {}).get("volatility") or 30.0
     move = min(0.20, max(0.05, 1.5 * vol / 100 / math.sqrt(12)))  # 1,5 écart-type mensuel, borné 5-20 %
     warnings = []
@@ -72,14 +73,15 @@ def plan(symbol: str, side: str, amount: float | None = None, quantity: float | 
         if pf["cash"] and amount > pf["cash"]:
             warnings.append("cash_insufficient")
         limit = _round(price * 1.003, up=True)
-        quantity = max(0, math.floor((amount - fee(amount)) / limit))
+        quantity = max(0, math.floor((amount - fee(amount)) / (limit * fx)))
         if quantity == 0:
             warnings.append("amount_too_small")
-        gross = round(quantity * limit, 2)
+        gross = round(quantity * limit * fx, 2)  # en euros
         after = ((line["value"] if line else 0) + gross) / max(pf["total"] or gross, 1) * 100
         if after > MAX_LINE:
             warnings.append("line_heavy")
-        return {"symbol": sym, "side": side, "name": q["name"], "isin": info.get("isin"), "price": price, "currency": q["currency"],
+        return {"symbol": sym, "side": side, "name": q["name"], "isin": info.get("isin"), "price": price, "currency": q["currency"], "fx": fx,
+                "amount_native": round(quantity * limit, 2), "alternatives": info.get("alternatives", []),
                 "quantity": quantity, "limit": limit, "amount": gross, "fees": fee(gross), "total": round(gross + fee(gross), 2),
                 "stop_loss": _round(price * (1 - move), up=False), "target": _round(price * (1 + 2 * move), up=True),
                 "weight_after": round(after, 1), "advice": adv, "warnings": warnings, "fees_settings": fees_settings()}
@@ -97,11 +99,12 @@ def plan(symbol: str, side: str, amount: float | None = None, quantity: float | 
     if adv and adv["verdict"] in ("BUY", "STRONG_BUY"):
         warnings.append(f"verdict_{adv['verdict'].lower()}")
     limit = _round(price * 0.997, up=False)
-    gross = round(quantity * limit, 2)
-    pru = line["avg_price"] if line else price
-    return {"symbol": sym, "side": side, "name": q["name"], "isin": info.get("isin"), "price": price, "currency": q["currency"],
+    gross = round(quantity * limit * fx, 2)  # en euros
+    pru = line["avg_price"] if line else price * fx  # PRU en euros
+    return {"symbol": sym, "side": side, "name": q["name"], "isin": info.get("isin"), "price": price, "currency": q["currency"], "fx": fx,
+            "amount_native": round(quantity * limit, 2),
             "quantity": quantity, "held": held, "limit": limit, "amount": gross, "fees": fee(gross), "total": round(gross - fee(gross), 2),
-            "realized_pnl": round((limit - pru) * quantity - fee(gross), 2), "avg_price": pru,
+            "realized_pnl": round(gross - pru * quantity - fee(gross), 2), "avg_price": pru,
             "advice": adv, "warnings": warnings, "fees_settings": fees_settings()}
 
 

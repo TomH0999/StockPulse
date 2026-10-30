@@ -101,8 +101,8 @@ export function PortfolioView({ onOpen }: { onOpen: (symbol: string) => void }) 
                   <div className="font-mono font-bold">{l.symbol}</div><div className="text-xs muted truncate max-w-[200px]">{l.name} · {t.pfSince} {new Date(l.since).toLocaleDateString(lang)}</div>
                 </td>
                 <td className="px-3 py-2 text-right">{l.quantity}</td>
-                <td className="px-3 py-2 text-right">{l.avg_price.toFixed(2)} {l.currency !== 'EUR' && <span className="muted text-xs">{l.currency}</span>}</td>
-                <td className="px-3 py-2 text-right">{l.price.toFixed(2)} <span className={`text-xs ${up(l.change_percent ?? 0)}`}>{pct(l.change_percent)}</span></td>
+                <td className="px-3 py-2 text-right">{l.avg_price.toFixed(2)} €</td>
+                <td className="px-3 py-2 text-right">{l.price.toFixed(2)}{l.currency !== 'EUR' && <span className="muted text-xs"> {l.currency}</span>} <span className={`text-xs ${up(l.change_percent ?? 0)}`}>{pct(l.change_percent)}</span></td>
                 <td className="px-3 py-2 text-right">{money(l.value, lang)}</td>
                 <td className={`px-3 py-2 text-right ${up(l.pnl)}`}>{money(l.pnl, lang)}<div className="text-xs">{pct(l.pnl_percent)}</div></td>
                 <td className={`px-3 py-2 text-right ${up(l.realized)}`}>{l.realized ? money(l.realized, lang) : '–'}</td>

@@ -210,7 +210,7 @@ export interface Fundamentals {
 
 export interface OrderPlan {
   symbol: string; side: 'buy' | 'sell' | 'reduce'; name: string; isin: string | null; price: number; currency: string;
-  quantity: number; held?: number; limit: number; amount: number; fees: number; total: number;
+  quantity: number; held?: number; limit: number; amount: number; amount_native: number; fx: number; fees: number; total: number;
   stop_loss?: number; target?: number; weight_after?: number; realized_pnl?: number; avg_price?: number;
   advice: AdviceSummary | null; warnings: string[]; fees_settings: { pct: number; min: number };
 }

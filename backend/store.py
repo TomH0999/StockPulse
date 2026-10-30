@@ -65,6 +65,9 @@ def init():
         cols = [r[1] for r in conn.execute("PRAGMA table_info(articles)")]
         if "sentiment_score" not in cols:
             conn.execute("ALTER TABLE articles ADD COLUMN sentiment_score REAL")
+        mcols = [r[1] for r in conn.execute("PRAGMA table_info(pea_movements)")]
+        if "fx" not in mcols:
+            conn.execute("ALTER TABLE pea_movements ADD COLUMN fx REAL")
         if "ai_sentiment" not in cols:
             conn.execute("ALTER TABLE articles ADD COLUMN ai_sentiment TEXT")
 
