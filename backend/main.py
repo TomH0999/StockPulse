@@ -11,7 +11,8 @@ from fastapi.staticfiles import StaticFiles
 
 import catalog
 import store
-from services import advisor, ai_pool, alerts, fundamentals, fx, health, news, orders, portfolio, scheduler, screener, yahoo
+from services import (advisor, ai_pool, alerts, dividends, fundamentals, fx, health, history, importer, news, objectives, orders,
+                      portfolio, rebalance, scheduler, screener, yahoo)
 
 store.init()
 threading.Thread(target=news.migrate, daemon=True).start()
@@ -216,6 +217,63 @@ def add_movement(type: str = Body(...), day: str = Body(...), symbol: str | None
         return portfolio.add_movement(type, day, symbol, quantity, price, fees, amount)
     except ValueError as e:
         raise HTTPException(400, str(e))
+
+
+@app.put("/api/portfolio/movements/{movement_id}")
+def update_movement(movement_id: int, day: str | None = Body(None), symbol: str | None = Body(None), quantity: float | None = Body(None),
+                    price: float | None = Body(None), fees: float | None = Body(None), amount: float | None = Body(None)):
+    try:
+        return portfolio.update_movement(movement_id, day=day, symbol=symbol, quantity=quantity, price=price, fees=fees, amount=amount)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+
+
+@app.post("/api/portfolio/import")
+def import_csv(content: str = Body(...), commit: bool = Body(False)):
+    try:
+        return importer.run(content, commit)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+
+
+@app.get("/api/portfolio/history")
+def portfolio_history():
+    return history.series()
+
+
+@app.get("/api/portfolio/dividends")
+def portfolio_dividends():
+    return dividends.calendar()
+
+
+@app.get("/api/portfolio/deposit-plan")
+def deposit_plan(amount: float):
+    """Répartition proposée d'un prochain versement (programmé ou ponctuel)."""
+    if amount <= 0:
+        raise HTTPException(400, "Montant positif requis")
+    s = portfolio.summary()
+    s = {**s, "cash": s["cash"] + amount, "total": s["total"] + amount}
+    return {"amount": amount, "actions": [a for a in rebalance.plan(s)["actions"] if a["side"] == "buy"]}
+
+
+@app.get("/api/objectives")
+def get_objectives():
+    return objectives.get()
+
+
+@app.put("/api/objectives")
+def put_objectives(values: dict = Body(...)):
+    try:
+        return objectives.update(values)
+    except (ValueError, TypeError) as e:
+        raise HTTPException(400, str(e))
+
+
+@app.get("/api/orders/costs")
+def order_costs(symbol: str, side: str, quantity: float, price: float):
+    q = _yahoo(yahoo.quote, symbol)
+    gross = quantity * price * (fx.rate(q.get("currency")) or 1.0)
+    return orders.costs(symbol, side, gross, q.get("currency") or "EUR")
 
 
 @app.delete("/api/portfolio/movements/{movement_id}")

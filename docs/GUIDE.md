@@ -69,8 +69,14 @@ Le PEA fonctionne comme un journal de mouvements : liquidités, PRU, plus-values
 2. **Achat** : pour chaque action détenue, saisissez vos achats (date, quantité, prix unitaire, frais) tels qu'indiqués par
    votre courtier ; le PRU est calculé (frais inclus). Pour une reprise rapide, un seul achat au PRU affiché par votre courtier suffit.
 3. **Vente / Dividende / Retrait** : à saisir au fil de l'eau ; la plus-value réalisée est calculée à chaque vente.
-4. Consultez **Suggestions de rééquilibrage** : chaque action proposée a sa raison et un bouton « Préparer l'ordre ».
-5. Après chaque ordre réellement passé chez le courtier, cliquez « J'ai passé cet ordre » : quantités, PRU et liquidités se
+4. Plus rapide : **Journal & import → Import depuis votre courtier (CSV)** : exportez l'historique de votre PEA depuis le site du
+   courtier, chargez le fichier, vérifiez l'aperçu puis importez.
+5. **Objectifs** : date d'ouverture du PEA (échéance des 5 ans, impôt estimé en cas de retrait), versement mensuel programmé,
+   part d'ETF souhaitée, plafonds par ligne / secteur, frais de change de votre courtier.
+6. **Vue d'ensemble → Plan d'ensemble** : toutes les suggestions combinées (aucune vente pour financer un autre achat, pas
+   d'allègement d'une ligne récente) ; **Conseil ligne par ligne** : que faire de chaque ligne prise isolément.
+7. **Performance & dividendes** : vraie performance du PEA comparée au CAC 40 et au MSCI World, dividendes reçus et attendus.
+8. Après chaque ordre réellement passé chez le courtier, cliquez « J'ai passé cet ordre » : quantités, PRU et liquidités se
    mettent à jour partout.
 
 ## 6. Passer un ordre avec l'application

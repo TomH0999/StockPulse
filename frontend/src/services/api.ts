@@ -203,6 +203,12 @@ export interface Portfolio {
   gain: number;
   ceiling_left: number;
   ceiling: number;
+  opened: string | null;
+  five_years: string | null;
+  mature: boolean;
+  days_to_five_years: number;
+  tax_rate: number | null;
+  tax_if_withdrawn: number | null;
   total: number;
   performance: number | null;
 }
@@ -217,7 +223,29 @@ export interface OrderPlan {
   quantity: number; held?: number; limit: number; amount: number; amount_native: number; fx: number; fees: number; total: number;
   stop_loss?: number; target?: number; weight_after?: number; realized_pnl?: number; avg_price?: number;
   advice: AdviceSummary | null; warnings: string[]; fees_settings: { pct: number; min: number };
+  costs?: { broker: number; ttf: number; fx: number; total: number };
 }
+
+export interface RebalanceAction {
+  symbol: string; name: string; side: 'buy' | 'sell' | 'reduce'; quantity: number; amount: number; current_weight: number;
+  target_weight: number; sector: string | null; reasons: string[]; score: number | null;
+}
+export interface Rebalance {
+  actions: RebalanceAction[];
+  lines: { symbol: string; name: string; advice: 'hold' | 'buy' | 'sell' | 'reduce'; reasons: string[]; weight: number; target_weight: number;
+    quantity: number; amount: number; pnl_percent: number; days_held: number; verdict: string | null }[];
+  before: Record<string, number>;
+  after: Record<string, number>;
+  cash_after: number;
+  turnover: number;
+}
+export interface Objectives {
+  opened: string | null; monthly_deposit: number; etf_share: number; etf_symbol: string; max_line: number; max_sector: number;
+  cash_reserve: number; fx_fee_pct: number; ttf: boolean;
+}
+export interface HistoryPoint2 { day: string; value: number; invested: number; pea: number; [bench: string]: number | string | null }
+export interface ImportRow { line: number; type: string | null; day: string | null; symbol?: string | null; label: string | null;
+  quantity: number | null; price: number | null; fees: number; amount: number | null; error: string | null; raw_type: string }
 
 export interface PriceAlert { id: number; symbol: string; direction: 'above' | 'below'; price: number; triggered_at: number | null }
 export interface AlertEvent { key: string; type: 'price' | 'drop' | 'verdict'; symbol: string; [k: string]: unknown }
@@ -226,13 +254,7 @@ export interface PortfolioAnalysis {
     sectors: Record<string, number>;
     countries: Record<string, number>;
     warnings: { code: string; [k: string]: unknown }[];
-    rebalance: {
-      actions: { symbol: string; name: string; side: 'buy' | 'sell' | 'reduce'; quantity: number; amount: number; current_weight: number;
-        target_weight: number; sector: string | null; reasons: string[]; score: number | null; blocked?: string }[];
-      before: Record<string, number>;
-      after: Record<string, number>;
-      cash_after: number;
-    };
+    rebalance: Rebalance;
   };
   benchmark: { index: string; series: { day: string; portfolio: number; index: number }[] };
 }
@@ -277,6 +299,17 @@ export const api = {
   removeAlert: async (id: number) => (await apiClient.delete<PriceAlert[]>(`/alerts/${id}`)).data,
   movements: () => get<Movement[]>('/portfolio/movements'),
   addMovement: async (m: Partial<Movement>) => (await apiClient.post<Portfolio>('/portfolio/movements', m)).data,
+  updateMovement: async (id: number, m: Partial<Movement>) => (await apiClient.put<Portfolio>(`/portfolio/movements/${id}`, m)).data,
+  importCsv: async (content: string, commit: boolean) =>
+    (await apiClient.post<{ rows: ImportRow[]; valid: number; errors: number; added?: number; columns: Record<string, string> }>('/portfolio/import', { content, commit })).data,
+  peaHistory: () => get<{ points: HistoryPoint2[]; benchmarks: string[]; performance?: number; benchmark_performance?: Record<string, number | null> }>('/portfolio/history'),
+  dividends: () => get<{ received: { day: string; symbol: string; amount: number }[]; upcoming: { symbol: string; date: string; per_share: number | null; amount: number; estimated: boolean }[];
+    received_total: number; next_12m: number; yield: number | null }>('/portfolio/dividends'),
+  depositPlan: (amount: number) => get<{ amount: number; actions: RebalanceAction[] }>('/portfolio/deposit-plan', { amount }),
+  objectives: () => get<Objectives>('/objectives'),
+  saveObjectives: async (o: Partial<Objectives>) => (await apiClient.put<Objectives>('/objectives', o)).data,
+  orderCosts: (symbol: string, side: string, quantity: number, price: number) =>
+    get<{ broker: number; ttf: number; fx: number; total: number }>('/orders/costs', { symbol, side, quantity, price }),
   deleteMovement: async (id: number) => (await apiClient.delete<Portfolio>(`/portfolio/movements/${id}`)).data,
   screener: () => get<{ updated: number; rows: ScreenerRow[] }>('/screener'),
   aiSettings: () => get<AiSettings>('/settings/ai'),

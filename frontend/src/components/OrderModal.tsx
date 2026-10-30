@@ -31,7 +31,8 @@ export function OrderModal({ symbol, side, onClose, initialAmount, initialQuanti
     fill(t.step_qty, { quantity: n(plan.quantity) }),
     fill(t.step_type, { limit: n(plan.limit), currency: plan.currency }),
     t.step_validity,
-    fill(t.step_check, { amount: plan.currency === 'EUR' ? n(plan.amount) : `${n(plan.amount_native)} ${plan.currency} ≈ ${n(plan.amount)}`, currency: '€', fees: n(plan.fees) }),
+    fill(t.step_check, { amount: plan.currency === 'EUR' ? n(plan.amount) : `${n(plan.amount_native)} ${plan.currency} ≈ ${n(plan.amount)}`, currency: '€', fees: n(plan.fees) })
+      + (plan.costs && (plan.costs.ttf || plan.costs.fx) ? ` (${fill(t.feesDetail, { b: n(plan.costs.broker), t: n(plan.costs.ttf), f: n(plan.costs.fx) })})` : ''),
     t.step_validate,
     ...(!sellSide && plan.stop_loss ? [fill(t.step_stop, { stop: n(plan.stop_loss), target: n(plan.target!), currency: plan.currency })] : []),
   ] : [];

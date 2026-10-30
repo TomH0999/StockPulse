@@ -94,6 +94,15 @@ def _dedupe_listings(entries: list[dict]) -> list[dict]:
     return out
 
 
+def lookup(symbol: str) -> dict:
+    """Fiche du catalogue d'une valeur, y compris pour une cotation secondaire (même société, autre place)."""
+    sym = symbol.upper()
+    for e in entries():
+        if e["symbol"] == sym or sym in e.get("alternatives", []):
+            return e
+    return {}
+
+
 def symbols() -> list[str]:
     return [e["symbol"] for e in entries()]
 

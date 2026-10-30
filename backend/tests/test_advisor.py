@@ -115,4 +115,4 @@ def test_invalid_ai_verdict_is_ignored(market, monkeypatch):
 def test_cached_verdicts_summary(market):
     advisor.advise("AI.PA", "fr")
     v = advisor.cached_verdicts()["AI.PA"]
-    assert set(v) == {"verdict", "score", "confidence", "engine", "generated_at"}
+    assert {"verdict", "score", "confidence", "engine", "generated_at", "hit_6m", "cagr", "volatility"} == set(v)

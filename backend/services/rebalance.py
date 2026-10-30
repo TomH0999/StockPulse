@@ -1,33 +1,45 @@
-"""Rééquilibrage du PEA : allocation cible (conseil × confiance / volatilité, plafonds ligne et secteur),
-puis ordres concrets pour s'en rapprocher (ventes d'abord, petites opérations écartées à cause des frais)."""
+"""Suggestions pour le PEA, pensées pour le long terme et sans aller-retour :
+- on part du PEA tel qu'il est : aucune vente pour financer un autre achat ;
+- ventes seulement pour une vraie raison (conseil « Vendre » / « Alléger » durable, plafond nettement dépassé, non éligible),
+  jamais sur une ligne achetée depuis moins de 30 jours (sauf « Vendre » ou plafond) ;
+- liquidités investies dans les lignes les plus convaincantes et sous leur cible, puis dans de nouvelles idées ;
+- plan d'ensemble vérifié : une fois toutes les suggestions appliquées, aucune autre suggestion n'est déclenchée."""
 import math
+from datetime import date
 
 import catalog
-from services import advisor, fx, orders, screener
+from services import advisor, fx, objectives, orders, screener
 
-MAX_LINE, MAX_SECTOR, MIN_LINES, CASH_TARGET = 0.20, 0.35, 5, 0.03
 CONF = {"low": 0.5, "medium": 0.8, "high": 1.0}
+MIN_LINES = 5
+HOLD_DAYS = 30
+TOLERANCE = 2.0  # points de pourcentage au-dessus d'un plafond avant d'alléger (évite les petits allers-retours)
+SECTOR_TOLERANCE = 5.0
 
 
-def _conviction(adv: dict | None) -> float:
-    """0 = sortir, 1 = neutre, jusqu'à 2 = forte conviction d'achat."""
+def conviction(adv: dict | None) -> float:
+    """Conviction de long terme : conseil × confiance, corrigée par la fiabilité passée et la tendance de fond."""
     if not adv:
         return 0.8
     if adv["verdict"] == "SELL":
         return 0.0
-    return max(0.0, 1 + adv["score"] / 100 * CONF.get(adv.get("confidence"), 0.8) * 1.5)
+    # pente modérée : la calibration sur 5 ans (tools/calibrate.py) ne montre pas de pouvoir prédictif stable du score
+    c = 1 + adv["score"] / 100 * CONF.get(adv.get("confidence"), 0.8) * 0.8
+    if adv.get("hit_6m") is not None:
+        c *= 0.75 + 0.5 * min(1.0, max(0.0, adv["hit_6m"] / 100))  # conseils historiquement peu fiables : pris avec prudence
+    if adv.get("cagr") is not None:
+        c *= 1 + max(-0.2, min(0.2, adv["cagr"] / 100))
+    return max(0.0, c)
 
 
-def _cap(weights: dict[str, float], sectors: dict[str, str], budget: float) -> dict[str, float]:
-    """Normalise au budget en respectant les plafonds par ligne et par secteur (redistribution itérative)."""
+def _cap(weights: dict[str, float], sectors: dict[str, str], budget: float, max_line: float, max_sector: float) -> dict[str, float]:
+    """Répartit le budget selon les poids en respectant les plafonds (remplissage itératif)."""
     w = {s: v for s, v in weights.items() if v > 0}
     if not w:
-        return w
-    # Avec trop peu de lignes ou de secteurs, un plafond strict forcerait à vendre pour garder des liquidités :
-    # il est alors levé (l'alerte de concentration et les idées de diversification restent affichées)
-    line_cap = MAX_LINE if len(w) * MAX_LINE >= budget else 1.0
-    sector_cap = MAX_SECTOR if len({sectors.get(s, "?") for s in w}) * MAX_SECTOR >= budget else 1.0
-    fixed: dict[str, float] = {}  # poids figés par un plafond (répartition « par remplissage »)
+        return {}
+    line_cap = max_line if len(w) * max_line >= budget else 1.0
+    sector_cap = max_sector if len({sectors.get(s, "?") for s in w}) * max_sector >= budget else 1.0
+    fixed: dict[str, float] = {}
     alloc: dict[str, float] = {}
     for _ in range(200):
         free = {k: v for k, v in w.items() if k not in fixed}
@@ -51,95 +63,135 @@ def _cap(weights: dict[str, float], sectors: dict[str, str], budget: float) -> d
     return {**fixed, **alloc}
 
 
+def _days_since(day: str | None) -> int:
+    try:
+        return (date.today() - date.fromisoformat(day)).days
+    except (TypeError, ValueError):
+        return 10_000
+
+
 def plan(summary: dict) -> dict:
+    obj = objectives.get()
+    max_line, max_sector = obj["max_line"] / 100, obj["max_sector"] / 100
     total = summary["total"]
-    lines = [l for l in summary["lines"] if l.get("in_total", True) and l["price"]]
     if total <= 0:
-        return {"actions": [], "target": {}, "before": {}, "after": {}}
-    info = {e["symbol"]: e for e in catalog.entries()}
-    snap, _ = screener.snapshot(max_age=86400)
+        return {"actions": [], "lines": [], "target": {}, "before": {}, "after": {}, "cash_after": 0}
+    held = {l["symbol"]: l for l in summary["lines"] if l["price"]}
     verdicts = advisor.cached_verdicts()
-    vol = lambda s: max(10.0, (snap.get(s) or {}).get("volatility") or 30.0)  # noqa: E731
-    sector = {s: (info.get(s) or {}).get("sector") or "?" for s in set(verdicts) | {l["symbol"] for l in lines}}
+    snap, _ = screener.snapshot(max_age=86400)
+    info = {s: catalog.lookup(s) for s in set(verdicts) | set(held)}
+    sector = {s: (info.get(s) or {}).get("sector") or "?" for s in info}
+    price_eur = {s: l["price"] * (l.get("fx") or 1.0) for s, l in held.items()}
+    value = {s: l["value"] for s, l in held.items()}
+    adv = {s: verdicts.get(s) or held[s]["advice"] for s in held}
+    actions, line_notes = [], {}
 
-    held = {l["symbol"]: l for l in lines}
-    raw = {s: _conviction(verdicts.get(s) or l["advice"]) / vol(s) for s, l in held.items()}
-    if any((info.get(s) or {}).get("pea") is False for s in held):
-        raw.update({s: 0.0 for s in held if (info.get(s) or {}).get("pea") is False})
+    def act(sym, side, qty, reasons):
+        amount = round(qty * price_eur[sym], 2)
+        actions.append({"symbol": sym, "name": (info.get(sym) or {}).get("name") or (held.get(sym) or {}).get("name", sym), "side": side,
+                        "quantity": qty, "amount": amount, "current_weight": round((held[sym]["value"] if sym in held else 0) / total * 100, 1),
+                        "sector": sector.get(sym), "reasons": reasons, "score": (verdicts.get(sym) or {}).get("score")})
+        value[sym] = value.get(sym, 0) + (amount if side == "buy" else -amount)
 
-    # Candidats : valeurs PEA actives au meilleur conseil, priorité aux secteurs absents ou sous-pondérés
-    held_sectors = {sector[s] for s in held}
-    cands = sorted((s for s, v in verdicts.items() if s not in held and v["score"] >= 25 and v["verdict"] in ("BUY", "STRONG_BUY")
-                    and (info.get(s) or {}).get("pea") and not (info.get(s) or {}).get("status")),
-                   key=lambda s: -(verdicts[s]["score"] * CONF.get(verdicts[s]["confidence"], 0.8) + (15 if sector[s] not in held_sectors else 0)))
-    picked, used_sectors = [], set(held_sectors)
-    kept_lines = sum(1 for v in raw.values() if v > 0)
+    # 1. Ventes justifiées uniquement
+    for s, l in held.items():
+        a = adv.get(s) or {}
+        recent = _days_since(l.get("last_buy")) < HOLD_DAYS
+        weight = l["value"] / total
+        if (info.get(s) or {}).get("pea") is False:
+            act(s, "sell", l["quantity"], ["not_pea"])
+        elif a.get("verdict") == "SELL" and a.get("confidence") != "low":
+            act(s, "sell", l["quantity"], ["verdict_sell"])
+        elif weight > max_line + TOLERANCE / 100:
+            act(s, "reduce", math.ceil((weight - max_line) * total / price_eur[s]), ["over_line_cap"])
+        elif a.get("verdict") == "REDUCE" and a.get("score", 0) <= -25 and not recent:
+            act(s, "reduce", max(1, math.floor(l["quantity"] / 3)), ["verdict_reduce"])
+        elif recent:
+            line_notes[s] = "recent"
+    by_sector: dict[str, float] = {}
+    for s, v in value.items():
+        by_sector[sector.get(s, "?")] = by_sector.get(sector.get(s, "?"), 0) + v
+    for sec, v in by_sector.items():
+        if sec != "?" and v / total > max_sector + SECTOR_TOLERANCE / 100 and len(by_sector) * max_sector >= 1:
+            excess = v - max_sector * total
+            # on allège d'abord les lignes anciennes et les moins convaincantes ; jamais un achat récent
+            for s in sorted((x for x in held if sector.get(x) == sec and value.get(x, 0) > 0
+                             and _days_since(held[x].get("last_buy")) >= HOLD_DAYS), key=lambda x: conviction(adv.get(x))):
+                qty = min(math.ceil(excess / price_eur[s]), math.floor(value[s] / price_eur[s]))
+                if qty > 0 and not any(a["symbol"] == s for a in actions):
+                    act(s, "reduce", qty, ["over_sector_cap"])
+                    excess -= qty * price_eur[s]
+                if excess <= 0:
+                    break
+
+    # 2. Cible de long terme (sert seulement à décider où investir les liquidités)
+    etf = obj["etf_symbol"] if obj["etf_share"] > 0 else None
+    budget = 1 - obj["cash_reserve"] / 100 - (obj["etf_share"] / 100 if etf else 0)
+    vol = lambda s: max(10.0, (verdicts.get(s) or {}).get("volatility") or (snap.get(s) or {}).get("volatility") or 30.0)  # noqa: E731
+    raw = {s: conviction(adv.get(s)) / math.sqrt(vol(s)) for s in held if value.get(s, 0) > 0 and s != etf}
+    held_sectors = {sector[s] for s in raw}
+    cands = sorted((s for s, v in verdicts.items() if s not in held and s != etf and v["score"] >= 25 and v["verdict"] in ("BUY", "STRONG_BUY")
+                    and (info.get(s) or {}).get("pea") and not (info.get(s) or {}).get("status") and (info.get(s) or {}).get("market") != "etf"),
+                   key=lambda s: -(conviction(verdicts[s]) + (0.5 if sector[s] not in held_sectors else 0)))
+    picked, used = [], set(held_sectors)
     for s in cands:
-        if kept_lines + len(picked) >= max(MIN_LINES, kept_lines + 2):
+        if len(raw) + len(picked) >= MIN_LINES and all(sector[c] in used for c in [s]):
+            continue
+        if len(raw) + len(picked) >= max(MIN_LINES, len(raw) + 2):
             break
-        if sector[s] not in used_sectors or kept_lines + len(picked) < MIN_LINES:
-            picked.append(s)
-            used_sectors.add(sector[s])
+        picked.append(s)
+        used.add(sector[s])
     for s in picked:
-        raw[s] = _conviction(verdicts[s]) / vol(s)
+        raw[s] = conviction(verdicts[s]) / math.sqrt(vol(s))
+        price_eur[s] = fx.to_eur((snap.get(s) or {}).get("price"), (snap.get(s) or {}).get("currency")) or 0
+    target = _cap(raw, sector, budget, max_line, max_sector)
+    if etf:
+        target[etf] = obj["etf_share"] / 100
+        price_eur.setdefault(etf, fx.to_eur((snap.get(etf) or {}).get("price"), (snap.get(etf) or {}).get("currency")) or 0)
+        sector.setdefault(etf, "ETF")
 
-    target = _cap(raw, sector, 1 - CASH_TARGET)
+    # 3. Investir les liquidités disponibles (ventes comprises), sans dépasser les plafonds
     min_trade = max(150.0, 0.02 * total)
-    # prix en euros (les écarts de poids sont en euros)
-    prices = {s: l["price"] * (l.get("fx") or 1.0) for s, l in held.items()}
-    prices.update({s: fx.to_eur((snap.get(s) or {}).get("price"), (snap.get(s) or {}).get("currency")) for s in picked})
+    cash = summary["cash"] + sum(a["amount"] - orders.fee(a["amount"]) for a in actions) - obj["cash_reserve"] / 100 * total
+    gaps = sorted(((s, target[s] * total - value.get(s, 0)) for s in target if price_eur.get(s)), key=lambda kv: -kv[1])
+    for s, gap in gaps:
+        if gap < min_trade or cash < min_trade:
+            continue
+        sec_room = max_sector * total - sum(v for x, v in value.items() if sector.get(x) == sector.get(s))
+        budget_eur = min(gap, cash - orders.fee(min(gap, cash)), max_line * total - value.get(s, 0), sec_room if s != etf else gap)
+        qty = math.floor(budget_eur / price_eur[s])
+        if qty < 1 or qty * price_eur[s] < min_trade:
+            continue
+        reason = "core_etf" if s == etf else "strong_advice" if s in held else ("new_sector" if sector[s] not in held_sectors else "new_line")
+        act(s, "buy", qty, [reason])
+        cash -= qty * price_eur[s] + orders.fee(qty * price_eur[s])
 
-    actions = []
-    for s in sorted(set(held) | set(target)):
-        price = prices.get(s)
-        if not price:
-            continue
-        current = held[s]["value"] if s in held else 0.0
-        goal = target.get(s, 0.0) * total
-        delta = goal - current
-        if abs(delta) < min_trade and not (goal == 0 and current > 0):
-            continue
-        qty = math.floor(abs(delta) / price) if goal > 0 else held[s]["quantity"]
-        if qty < 1:
-            continue
-        adv = verdicts.get(s) or (held[s]["advice"] if s in held else None)
-        side = "buy" if delta > 0 else ("sell" if goal == 0 else "reduce")
-        reasons = []
-        if side == "sell":
-            reasons.append("not_pea" if (info.get(s) or {}).get("pea") is False else "verdict_sell")
-        elif side == "reduce":
-            if s in held and (held[s]["weight"] or 0) / 100 > MAX_LINE:
-                reasons.append("over_line_cap")
-            if adv and adv["verdict"] in ("REDUCE", "HOLD"):
-                reasons.append(f"verdict_{adv['verdict'].lower()}")
-            reasons.append("rebalance_down")
+    # 4. Conseil ligne par ligne (cohérent avec le plan d'ensemble)
+    by_symbol = {a["symbol"]: a for a in actions}
+    lines = []
+    for s, l in held.items():
+        a, tw = by_symbol.get(s), target.get(s, 0) * 100
+        if a:
+            advice, reasons = a["side"], a["reasons"]
         else:
-            reasons.append("new_sector" if s not in held and sector[s] not in held_sectors else "new_line" if s not in held else "strong_advice")
-        actions.append({"symbol": s, "name": (info.get(s) or {}).get("name", s), "side": side, "quantity": qty,
-                        "amount": round(qty * price, 2), "current_weight": round(current / total * 100, 1),
-                        "target_weight": round(target.get(s, 0) * 100, 1), "sector": sector.get(s), "reasons": reasons,
-                        "score": adv["score"] if adv else None})
+            advice = "hold"
+            reasons = [line_notes.get(s) or ("near_target" if abs(l["value"] / total * 100 - tw) <= 5 else
+                                             "under_target_no_cash" if l["value"] / total * 100 < tw else "above_target_ok")]
+        lines.append({"symbol": s, "name": l["name"], "advice": advice, "reasons": reasons, "weight": round(l["value"] / total * 100, 1),
+                      "target_weight": round(tw, 1), "quantity": a["quantity"] if a else 0, "amount": a["amount"] if a else 0,
+                      "pnl_percent": l["pnl_percent"], "days_held": _days_since(l.get("since")), "verdict": (adv.get(s) or {}).get("verdict")})
 
-    # Ventes d'abord (elles financent les achats), puis achats dans la limite des liquidités disponibles
-    actions.sort(key=lambda a: (a["side"] == "buy", -a["amount"]))
-    cash = summary["cash"] + sum(a["amount"] - orders.fee(a["amount"]) for a in actions if a["side"] != "buy")
-    kept = []
     for a in actions:
-        if a["side"] == "buy":
-            budget = cash - orders.fee(min(a["amount"], cash))
-            if budget < min_trade:
-                a["blocked"] = "cash"
-            else:
-                a["quantity"] = min(a["quantity"], math.floor(budget / prices[a["symbol"]]))
-                a["amount"] = round(a["quantity"] * prices[a["symbol"]], 2)
-                cash -= a["amount"] + orders.fee(a["amount"])
-        kept.append(a)
+        a["target_weight"] = round(value.get(a["symbol"], 0) / total * 100, 1)
+    actions.sort(key=lambda a: (a["side"] == "buy", -a["amount"]))
 
-    def alloc(weights):
-        out = {}
-        for s, w in weights.items():
-            out[sector.get(s) or "?"] = round(out.get(sector.get(s) or "?", 0) + w * 100, 1)
+    def alloc(values):
+        out: dict[str, float] = {}
+        for s, v in values.items():
+            if v > 0:
+                out[sector.get(s) or "?"] = round(out.get(sector.get(s) or "?", 0) + v / total * 100, 1)
         return dict(sorted(out.items(), key=lambda kv: -kv[1]))
-    before = {s: l["value"] / total for s, l in held.items()}
-    return {"actions": kept, "target": {s: round(w * 100, 1) for s, w in target.items()},
-            "before": alloc(before), "after": alloc(target), "cash_after": round(cash, 2)}
+    return {"actions": actions, "lines": lines, "target": {s: round(w * 100, 1) for s, w in target.items()},
+            "before": alloc({s: l["value"] for s, l in held.items()}), "after": alloc(value),
+            "cash_after": round(cash + obj["cash_reserve"] / 100 * total, 2),
+            "turnover": round(sum(a["amount"] for a in actions) / total * 100, 1)}

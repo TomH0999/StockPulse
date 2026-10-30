@@ -115,7 +115,9 @@ def test_benchmark_base_100(market):
 def test_order_buy_plan_and_execute(market):
     deposit(2000)
     p = orders.plan("AI.PA", "buy", amount=1000)
-    assert p["quantity"] == 5 and p["limit"] >= 180 and p["fees"] == pytest.approx(max(1.99, p["amount"] * 0.005), abs=0.01)
+    broker, ttf = max(1.99, p["amount"] * 0.005), p["amount"] * 0.004  # Air Liquide : grande valeur française -> TTF 0,4 %
+    assert p["quantity"] == 5 and p["limit"] >= 180 and p["fees"] == pytest.approx(broker + ttf, abs=0.02)
+    assert p["costs"]["ttf"] == pytest.approx(ttf, abs=0.01)
     assert p["stop_loss"] < 180 < p["target"]
     s = orders.execute("AI.PA", "buy", 5, 180, 4.5, day="2026-01-03")
     line = next(l for l in s["lines"] if l["symbol"] == "AI.PA")
@@ -224,10 +226,10 @@ def test_reduce_plan_quantity_override(market):
 def test_cap_respects_limits_and_budget():
     from services import rebalance
     sectors = {"A": "S1", "B": "S1", "C": "S2", "D": "S3", "E": "S4", "F": "S5"}
-    w = rebalance._cap({"A": 10, "B": 9, "C": 1, "D": 1, "E": 1, "F": 0.5}, sectors, 0.97)
+    w = rebalance._cap({"A": 10, "B": 9, "C": 1, "D": 1, "E": 1, "F": 0.5}, sectors, 0.97, 0.2, 0.35)
     assert all(v <= 0.2 + 1e-6 for v in w.values()) and sum(w.values()) <= 0.97 + 1e-6
     assert w["A"] + w["B"] <= 0.35 + 1e-6
-    two = rebalance._cap({"A": 3, "C": 1}, sectors, 0.97)  # trop peu de lignes : pas de vente forcée en liquidités
+    two = rebalance._cap({"A": 3, "C": 1}, sectors, 0.97, 0.2, 0.35)  # trop peu de lignes : pas de vente forcée en liquidités
     assert sum(two.values()) == pytest.approx(0.97) and two["A"] > two["C"]
 
 
@@ -278,3 +280,40 @@ def test_fx_module_and_eur_everywhere(market, monkeypatch):
     monkeypatch.setattr(rebalance.advisor, "cached_verdicts", lambda: {"AAPL": {"verdict": "SELL", "score": -60, "confidence": "high", "engine": "local", "generated_at": 0}})
     act = next(a for a in rebalance.plan(portfolio.summary())["actions"] if a["symbol"] == "AAPL")
     assert act["side"] == "sell" and act["quantity"] == 20 and act["amount"] == pytest.approx(20 * 270)
+
+
+def _apply(plan_actions, day="2026-01-20"):
+    for a in plan_actions:
+        portfolio.add_movement("buy" if a["side"] == "buy" else "sell", day, a["symbol"], a["quantity"], 100.0, 0)
+
+
+def test_no_churn_after_following_suggestions(market, monkeypatch):
+    """Cas réel : six lignes achetées sur conseil ~19 % chacune ; aucune vente ne doit être suggérée juste après."""
+    syms = ["S1.PA", "S2.PA", "S3.PA", "S4.PA", "S5.PA", "S6.PA"]
+    for s in syms + ["NEW.PA"]:
+        market["prices"][s] = 100.0
+    rb = _verdicts(monkeypatch, {**{s: ("STRONG_BUY", 40 + i * 5) for i, s in enumerate(syms)}, "NEW.PA": ("STRONG_BUY", 90)})
+    monkeypatch.setattr(rb.catalog, "lookup", lambda s: {"pea": True, "sector": f"sec{s[1]}", "name": s})
+    deposit(5000, day="2026-01-02")
+    for s, q in zip(syms, [9, 9, 9, 9, 4, 9]):
+        portfolio.add_movement("buy", date_recent(), s, q, 100.0, 0)
+    p = rb.plan(portfolio.summary())
+    assert not [a for a in p["actions"] if a["side"] != "buy"], p["actions"]  # pas d'allègement pour financer une nouvelle idée
+    _apply(p["actions"], date_recent())
+    again = rb.plan(portfolio.summary())
+    assert not [a for a in again["actions"] if a["side"] != "buy"]  # le plan appliqué n'en déclenche pas un autre
+    assert all(l["advice"] in ("hold", "buy") for l in again["lines"])
+
+
+def date_recent():
+    from datetime import date, timedelta
+    return (date.today() - timedelta(days=2)).isoformat()
+
+
+def test_line_advice_reasons(market, monkeypatch):
+    rb = _verdicts(monkeypatch, {"MC.PA": ("SELL", -60), "AI.PA": ("BUY", 30)})
+    hold("MC.PA", 5, 400)
+    hold("AI.PA", 5, 180, day=date_recent())
+    lines = {l["symbol"]: l for l in rb.plan(portfolio.summary())["lines"]}
+    assert lines["MC.PA"]["advice"] == "sell" and "verdict_sell" in lines["MC.PA"]["reasons"]
+    assert lines["AI.PA"]["advice"] in ("hold", "buy", "reduce")

@@ -1,6 +1,8 @@
 """Conseil d'investissement : analyse technique, rebondissements historiques, actualités, puis IA (si clé configurée)."""
 import json
 import math
+import os
+import sys
 import re
 import statistics
 import time
@@ -11,6 +13,13 @@ import store
 from services import ai_pool, fundamentals, news, portfolio, yahoo
 
 CACHE_SECONDS = 3600
+# Pondération des composantes du score local, calibrée sur l'historique réel (tools/calibrate.py)
+WEIGHTS_PATH = os.path.join(getattr(sys, "_MEIPASS", os.path.join(os.path.dirname(os.path.abspath(__file__)), "..")), "model_weights.json")
+NEW_COMPONENTS = {"mom_12_1", "low_vol"}
+try:
+    WEIGHTS = json.load(open(WEIGHTS_PATH, encoding="utf-8"))["weights"]
+except (OSError, ValueError, KeyError):
+    WEIGHTS = {}
 VERDICTS = ["SELL", "REDUCE", "HOLD", "BUY", "STRONG_BUY"]
 
 T = {
@@ -263,6 +272,13 @@ def local_advice(sym, lang, quote, hist, arts, now=None):
             pat.append(L["cagr"].format(c=tech["cagr"], y=int(tech["years"]), dd=-tech["max_drawdown"]))
             parts["long_term"] = max(-8, min(8, tech["cagr"] * 0.5))
 
+    if len(hist) > 260:
+        c = [p["close"] for p in hist]
+        # tendance 12 mois hors dernier mois (effet momentum de long terme) et faible volatilité (anomalie « low vol »)
+        mom = (c[-22] / c[-253] - 1) * 100 if c[-253] else 0
+        parts["mom_12_1"] = max(-10, min(10, mom * 0.25))
+        if tech.get("volatility"):
+            parts["low_vol"] = max(-8, min(8, (28 - tech["volatility"]) * 0.4))
     for kind in ("drop", "jump"):
         vals = ev_stats.get(kind) or []
         if len(vals) >= 4:
@@ -326,6 +342,7 @@ def local_advice(sym, lang, quote, hist, arts, now=None):
             if t["count"] >= 2 and abs(t["tone"]) >= 0.1:
                 (opp if t["tone"] > 0 else thr).append(L["topic"].format(t=L["topics"].get(name, name)) + f" ({t['count']} articles)")
 
+    parts = {k: v * WEIGHTS.get(k, 0.0 if k in NEW_COMPONENTS else 1.0) for k, v in parts.items()}
     score = int(max(-100, min(100, round(sum(parts.values())))))
     verdict = ("STRONG_BUY" if score >= 40 else "BUY" if score >= 15 else "HOLD" if score > -15 else "REDUCE" if score > -40 else "SELL")
     signs = [v for v in parts.values() if v]
@@ -531,6 +548,9 @@ def cached_verdicts() -> dict:
     out = {}
     for r in rows:
         p = json.loads(r[1])
+        tr = (p.get("track_record") or {}).get("6m") or {}
+        tech = p.get("technicals") or {}
         out[r[0]] = {"verdict": p["verdict"], "score": p["score"], "confidence": p["confidence"],
-                     "engine": p["engine"], "generated_at": p["generated_at"]}
+                     "engine": p["engine"], "generated_at": p["generated_at"], "hit_6m": tr.get("hit_rate"),
+                     "cagr": tech.get("cagr"), "volatility": tech.get("volatility")}
     return out

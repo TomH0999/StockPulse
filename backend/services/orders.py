@@ -5,7 +5,7 @@ from datetime import date
 
 import catalog
 import store
-from services import advisor, portfolio, screener, yahoo
+from services import advisor, objectives, portfolio, screener, yahoo
 from services import fx as fxmod
 
 MAX_LINE = 20  # % maximum d'une ligne dans le PEA
@@ -27,6 +27,20 @@ def fee(amount: float) -> float:
     return round(max(f["min"], amount * f["pct"] / 100), 2) if amount > 0 else 0.0
 
 
+TTF_RATE = 0.004  # taxe sur les transactions financières (achats d'actions françaises de plus d'1 Md€ de capitalisation)
+
+
+def costs(symbol: str, side: str, gross_eur: float, currency: str = "EUR") -> dict:
+    """Frais d'une opération en euros : courtage + TTF (achat d'une grande valeur française) + change (hors euro)."""
+    obj = objectives.get()
+    info = catalog.lookup(symbol)
+    ttf = round(gross_eur * TTF_RATE, 2) if (obj["ttf"] and side == "buy" and (info.get("isin") or "").startswith("FR")
+                                             and info.get("core") and info.get("market") != "etf") else 0.0
+    fx_fee = round(gross_eur * obj["fx_fee_pct"] / 100, 2) if currency != "EUR" else 0.0
+    broker = fee(gross_eur)
+    return {"broker": broker, "ttf": ttf, "fx": fx_fee, "total": round(broker + ttf + fx_fee, 2)}
+
+
 def _tick(price: float) -> float:
     return 0.0001 if price < 1 else 0.001 if price < 10 else 0.01 if price < 100 else 0.05
 
@@ -45,7 +59,7 @@ def plan(symbol: str, side: str, amount: float | None = None, quantity: float | 
     price = q["price"]
     if not price:
         raise ValueError("Pas de cours disponible")
-    info = next((e for e in catalog.entries() if e["symbol"] == sym), {})
+    info = catalog.lookup(sym)
     pf = portfolio.summary()
     line = next((l for l in pf["lines"] if l["symbol"] == sym), None)
     held = sum(l["quantity"] for l in pf["lines"] if l["symbol"] == sym)
@@ -81,9 +95,10 @@ def plan(symbol: str, side: str, amount: float | None = None, quantity: float | 
         after = ((line["value"] if line else 0) + gross) / max(pf["total"] or gross, 1) * 100
         if after > MAX_LINE:
             warnings.append("line_heavy")
+        c = costs(sym, "buy", gross, q["currency"])
         return {"symbol": sym, "side": side, "name": q["name"], "isin": info.get("isin"), "price": price, "currency": q["currency"], "fx": fx,
-                "amount_native": round(quantity * limit, 2), "alternatives": info.get("alternatives", []),
-                "quantity": quantity, "limit": limit, "amount": gross, "fees": fee(gross), "total": round(gross + fee(gross), 2),
+                "amount_native": round(quantity * limit, 2), "alternatives": info.get("alternatives", []), "costs": c,
+                "quantity": quantity, "limit": limit, "amount": gross, "fees": c["total"], "total": round(gross + c["total"], 2),
                 "stop_loss": _round(price * (1 - move), up=False), "target": _round(price * (1 + 2 * move), up=True),
                 "weight_after": round(after, 1), "advice": adv, "warnings": warnings, "fees_settings": fees_settings()}
 
@@ -103,9 +118,10 @@ def plan(symbol: str, side: str, amount: float | None = None, quantity: float | 
     gross = round(quantity * limit * fx, 2)  # en euros
     pru = line["avg_price"] if line else price * fx  # PRU en euros
     return {"symbol": sym, "side": side, "name": q["name"], "isin": info.get("isin"), "price": price, "currency": q["currency"], "fx": fx,
-            "amount_native": round(quantity * limit, 2),
-            "quantity": quantity, "held": held, "limit": limit, "amount": gross, "fees": fee(gross), "total": round(gross - fee(gross), 2),
-            "realized_pnl": round(gross - pru * quantity - fee(gross), 2), "avg_price": pru,
+            "amount_native": round(quantity * limit, 2), "costs": costs(sym, side, gross, q["currency"]),
+            "quantity": quantity, "held": held, "limit": limit, "amount": gross,
+            "fees": costs(sym, side, gross, q["currency"])["total"], "total": round(gross - costs(sym, side, gross, q["currency"])["total"], 2),
+            "realized_pnl": round(gross - pru * quantity - costs(sym, side, gross, q["currency"])["total"], 2), "avg_price": pru,
             "advice": adv, "warnings": warnings, "fees_settings": fees_settings()}
 
 

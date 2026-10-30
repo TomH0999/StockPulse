@@ -62,3 +62,12 @@ Classement, liste des entreprises, analyses automatiques, pool de clés IA multi
 - [x] Lignes hors euro converties ; poids calculés sur la valeur totale du PEA
 - [x] L'agent IA tient compte de la position et du PEA ; IA uniquement à la demande (plus d'analyse IA automatique)
 - [ ] Clés chiffrées sur macOS / Linux (trousseau du système)
+
+## ✅ v2.2 — Suggestions de long terme et outils de gestion du PEA
+- [x] Suggestions sans aller-retour : « Plan d'ensemble » (toutes les suggestions combinées, vérifiées) et « Conseil ligne par ligne »
+- [x] Import CSV des opérations du courtier, modification d'un mouvement
+- [x] Date d'ouverture : échéance des 5 ans et impôt estimé en cas de retrait
+- [x] Historique reconstitué et performance réelle (pondérée dans le temps) vs CAC 40 et MSCI World
+- [x] TTF (0,4 %) et frais de change calculés ; objectifs (versement programmé, part d'ETF, plafonds) ; plan du prochain versement
+- [x] Calendrier des dividendes reçus / attendus et rendement du portefeuille
+- [x] Outil de calibration du modèle local (tools/calibrate.py) : aucune pondération ne bat l'actuelle hors échantillon, modèle inchangé

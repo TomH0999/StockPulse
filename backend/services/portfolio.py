@@ -5,7 +5,7 @@ from datetime import date
 
 import catalog
 import store
-from services import advisor, fx, rebalance, yahoo
+from services import advisor, fx, objectives, rebalance, yahoo
 
 PEA_CEILING = 150_000
 
@@ -54,6 +54,7 @@ def ledger(rows: list[dict] | None = None) -> dict:
             p = pos.setdefault(m["symbol"], _new_pos(m["day"]))
             if p["quantity"] < EPS:
                 p["since"] = m["day"]
+            p["last_buy"] = m["day"]
             gross = m["quantity"] * m["price"] * (m.get("fx") or 1.0)
             p["quantity"] += m["quantity"]
             p["cost"] += gross + fees
@@ -78,7 +79,7 @@ def ledger(rows: list[dict] | None = None) -> dict:
 
 
 def _new_pos(day):
-    return {"quantity": 0.0, "cost": 0.0, "realized": 0.0, "dividends": 0.0, "since": day}
+    return {"quantity": 0.0, "cost": 0.0, "realized": 0.0, "dividends": 0.0, "since": day, "last_buy": day}
 
 
 def _rate_for(symbol: str | None) -> float:
@@ -121,6 +122,31 @@ def add_movement(type: str, day: str, symbol: str | None = None, quantity: float
     with store.connect() as conn:
         conn.execute("INSERT INTO pea_movements (day, type, symbol, quantity, price, fees, amount, fx) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
                      (m["day"], m["type"], m["symbol"], m["quantity"], m["price"], m["fees"], m["amount"], m["fx"]))
+    return summary()
+
+
+def update_movement(movement_id: int, **fields) -> dict:
+    """Modifie un mouvement : le journal entier est revalidé avant enregistrement."""
+    rows = movements()
+    cur = next((m for m in rows if m["id"] == movement_id), None)
+    if not cur:
+        raise ValueError("Mouvement introuvable")
+    new = {**cur, **{k: v for k, v in fields.items() if k in ("day", "symbol", "quantity", "price", "fees", "amount", "fx") and v is not None}}
+    if new.get("symbol"):
+        new["symbol"] = new["symbol"].upper()
+    if new["type"] in ("buy", "sell") and ((new.get("quantity") or 0) <= 0 or (new.get("price") or 0) <= 0):
+        raise ValueError("Quantité et prix doivent être positifs")
+    if new["type"] not in ("buy", "sell") and (new.get("amount") or 0) <= 0:
+        raise ValueError("Montant positif requis")
+    if (new.get("fees") or 0) < 0 or new["day"] > date.today().isoformat():
+        raise ValueError("Frais ou date invalides")
+    led = ledger([new if m["id"] == movement_id else m for m in rows])
+    if led["deposits"] > PEA_CEILING + 0.005:
+        raise ValueError("Plafond de versements du PEA dépassé")
+    with store.connect() as conn:
+        conn.execute("UPDATE pea_movements SET day = ?, symbol = ?, quantity = ?, price = ?, fees = ?, amount = ?, fx = ? WHERE id = ?",
+                     (new["day"], new.get("symbol"), new.get("quantity"), new.get("price"), new.get("fees") or 0, new.get("amount"),
+                      new.get("fx"), movement_id))
     return summary()
 
 
@@ -170,7 +196,7 @@ def summary() -> dict:
     quotes = {q["symbol"]: q for q in yahoo.quotes(list(held))} if held else {}
     rates = _fx({(quotes.get(s) or {}).get("currency") or "EUR" for s in held})
     verdicts = advisor.cached_verdicts()
-    info = {e["symbol"]: e for e in catalog.entries()}
+    info = {s: catalog.lookup(s) for s in held}
     out, value_total, cost_total, day_change = [], 0.0, 0.0, 0.0
     for s, p in sorted(held.items()):
         q = quotes.get(s, {})
@@ -200,14 +226,28 @@ def summary() -> dict:
                     "quantity": round(qty, 6), "avg_price": round(cost / qty, 4), "price": price, "change_percent": q.get("change_percent"),
                     "value": round(value, 2), "cost": round(cost_eur, 2), "pnl": round(value - cost_eur, 2),
                     "pnl_percent": round((value / cost_eur - 1) * 100, 2) if cost_eur else 0.0,
-                    "realized": round(p["realized"], 2), "dividends": round(p["dividends"], 2), "since": p["since"],
+                    "realized": round(p["realized"], 2), "dividends": round(p["dividends"], 2), "since": p["since"], "last_buy": p["last_buy"],
                     "advice": adv, "alerts": alerts, "in_total": True})
     cash = round(led["cash"], 2)
     total = value_total + cash
     for l in out:
         l["weight"] = round(l["value"] / total * 100, 1) if total else None  # poids dans le PEA entier (titres + liquidités)
     net = led["deposits"] - led["withdrawals"]
+    gain = total - net
+    opened = objectives.get()["opened"]
+    five = None
+    if opened:
+        o = date.fromisoformat(opened)
+        try:
+            five = o.replace(year=o.year + 5)
+        except ValueError:  # 29 février
+            five = o.replace(year=o.year + 5, day=28)
+    mature = bool(five and date.today() >= five)
+    tax_rate = 0.172 if mature else 0.30  # après 5 ans : prélèvements sociaux seuls ; avant : PFU 30 % et clôture du plan
     return {
+        "opened": opened, "five_years": five.isoformat() if five else None, "mature": mature,
+        "days_to_five_years": (five - date.today()).days if five and not mature else 0,
+        "tax_rate": tax_rate if opened else None, "tax_if_withdrawn": round(max(0.0, gain) * tax_rate, 2) if opened else None,
         "lines": out, "value": round(value_total, 2), "cost": round(cost_total, 2), "pnl": round(value_total - cost_total, 2),
         "pnl_percent": round((value_total / cost_total - 1) * 100, 2) if cost_total else 0.0,
         "realized": round(led["realized"], 2), "dividends": round(led["dividends"], 2), "fees": round(led["fees"], 2),
@@ -223,7 +263,7 @@ MAX_LINE, MAX_SECTOR, MIN_LINES = 20, 35, 5
 
 def diversification(summary: dict) -> dict:
     """Répartition par secteur / pays, risques de concentration et suggestions de rééquilibrage."""
-    info = {e["symbol"]: e for e in catalog.entries()}
+    info = {l["symbol"]: catalog.lookup(l["symbol"]) for l in summary["lines"]}  # cotations secondaires comprises
     lines = [l for l in summary["lines"] if l["weight"]]
     sectors, countries = {}, {}
     for l in lines:
