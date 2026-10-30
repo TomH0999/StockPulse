@@ -19,7 +19,7 @@
       "to": "frontend"
     }
   ],
-  "artifactName": "${productName}-Setup-${version}.${ext}",
+  "artifactName": "${productName}-${version}-${os}-${arch}.${ext}",
   "win": {
     "target": [
       {
@@ -29,7 +29,8 @@
         ]
       }
     ],
-    "icon": "assets/icon.ico"
+    "icon": "assets/icon.ico",
+    "artifactName": "${productName}-Setup-${version}.${ext}"
   },
   "nsis": {
     "oneClick": false,
@@ -44,5 +45,34 @@
       "owner": "TomH0999",
       "repo": "StockPulse"
     }
-  ]
+  ],
+  "mac": {
+    "target": [
+      {
+        "target": "dmg",
+        "arch": [
+          "arm64"
+        ]
+      },
+      {
+        "target": "zip",
+        "arch": [
+          "arm64"
+        ]
+      }
+    ],
+    "icon": "assets/icon.png",
+    "category": "public.app-category.finance",
+    "identity": null
+  },
+  "linux": {
+    "target": [
+      "AppImage",
+      "deb"
+    ],
+    "icon": "assets/icon.png",
+    "category": "Office",
+    "maintainer": "TomH0999 <noreply@github.com>",
+    "synopsis": "Centrale bourse & actualit\u00e9s"
+  }
 }

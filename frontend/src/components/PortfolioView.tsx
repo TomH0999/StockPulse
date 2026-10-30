@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Briefcase, Pencil, Trash2 } from 'lucide-react';
-import { api, errorMessage, money, pct, Portfolio, PortfolioLine } from '../services/api';
+import { api, errorMessage, money, notifyPortfolioChanged, onPortfolioChanged, pct, Portfolio, PortfolioLine } from '../services/api';
 import { useI18n } from '../context';
 import { StockSearchSelector } from './StockSearchSelector';
 import { VerdictBadge } from './VerdictBadge';
@@ -13,7 +13,8 @@ export function usePortfolio() {
     const load = () => api.portfolio().then((d) => alive && setData(d)).catch(() => {});
     load();
     const id = setInterval(load, 30000);
-    return () => { alive = false; clearInterval(id); };
+    const off = onPortfolioChanged(load);
+    return () => { alive = false; clearInterval(id); off(); };
   }, []);
   return [data, setData] as const;
 }
@@ -44,7 +45,7 @@ export function PortfolioView({ onOpen }: { onOpen: (symbol: string) => void }) 
   }, [data, account]);
 
   const run = (p: Promise<Portfolio>, after?: () => void) =>
-    p.then((d) => { setData(d); setError(null); setVersion((v) => v + 1); after?.(); }).catch((e) => setError(errorMessage(e)));
+    p.then((d) => { setData(d); setError(null); setVersion((v) => v + 1); notifyPortfolioChanged(); after?.(); }).catch((e) => setError(errorMessage(e)));
 
   const submit = () => {
     const q = Number(form.quantity.replace(',', '.')), pr = Number(form.price.replace(',', '.'));

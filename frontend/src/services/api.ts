@@ -210,7 +210,13 @@ export interface PortfolioAnalysis {
     sectors: Record<string, number>;
     countries: Record<string, number>;
     warnings: { code: string; [k: string]: unknown }[];
-    actions: { code: string; symbol: string; [k: string]: unknown }[];
+    rebalance: {
+      actions: { symbol: string; name: string; side: 'buy' | 'sell' | 'reduce'; quantity: number; amount: number; current_weight: number;
+        target_weight: number; sector: string | null; reasons: string[]; score: number | null; blocked?: string }[];
+      before: Record<string, number>;
+      after: Record<string, number>;
+      cash_after: number;
+    };
   };
   benchmark: { index: string; series: { day: string; portfolio: number; index: number }[] };
 }
@@ -241,7 +247,7 @@ export const api = {
   catalog: () => get<CatalogEntry[]>('/catalog'),
   health: (refresh = false) => get<HealthReport>('/health/full', { refresh }),
   portfolio: () => get<Portfolio>('/portfolio'),
-  orderPlan: (symbol: string, side: string, amount?: number) => get<OrderPlan>('/orders/plan', { symbol, side, amount }),
+  orderPlan: (symbol: string, side: string, amount?: number, quantity?: number) => get<OrderPlan>('/orders/plan', { symbol, side, amount, quantity }),
   executeOrder: async (symbol: string, side: string, quantity: number, price: number, fees: number) =>
     (await apiClient.post<Portfolio>('/orders/execute', { symbol, side, quantity, price, fees })).data,
   setFees: async (pct: number, minimum: number) => (await apiClient.put('/orders/fees', { pct, minimum })).data,
@@ -282,4 +288,12 @@ export const pct = (v: number | null | undefined) => (v === null || v === undefi
 
 export const money = (v: number, lang: Lang, currency = 'EUR') => {
   try { return new Intl.NumberFormat(lang, { style: 'currency', currency }).format(v); } catch { return `${v.toFixed(2)} ${currency}`; }
+};
+
+/** Prévient tous les écrans qu'une donnée du PEA a changé (ordre, ligne, liquidités). */
+export const PORTFOLIO_CHANGED = 'stockpulse:portfolio-changed';
+export const notifyPortfolioChanged = () => window.dispatchEvent(new Event(PORTFOLIO_CHANGED));
+export const onPortfolioChanged = (fn: () => void) => {
+  window.addEventListener(PORTFOLIO_CHANGED, fn);
+  return () => window.removeEventListener(PORTFOLIO_CHANGED, fn);
 };

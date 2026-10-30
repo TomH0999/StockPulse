@@ -2,9 +2,13 @@
 
 Centrale bourse & actualités pour ordinateur : cours en direct, graphiques, archive d'articles et conseil d'investissement.
 
-## Installer (Windows)
+## Démarrer
 
-Télécharger `StockPulse-Setup-x.y.z.exe` depuis la page [Releases](https://github.com/TomH0999/StockPulse/releases) et l'exécuter.
+**Guide complet de mise en place : [docs/GUIDE.md](docs/GUIDE.md)** (installation, clés gratuites, PEA, favoris de départ).
+
+## Installer (Windows, macOS, Linux)
+
+Télécharger depuis [Releases](https://github.com/TomH0999/StockPulse/releases) : `StockPulse-Setup-x.y.z.exe` (Windows), `.dmg` (macOS Apple Silicon), `.AppImage` / `.deb` (Linux).
 Vérifier l'intégrité (facultatif) : `certutil -hashfile StockPulse-Setup-x.y.z.exe SHA256` doit correspondre à `SHA256SUMS.txt` de la release.
 Windows SmartScreen peut afficher un avertissement (application non signée) : « Informations complémentaires » → « Exécuter quand même ».
 
@@ -13,7 +17,7 @@ Feuille de route : [ROADMAP.md](ROADMAP.md)
 ## Fonctionnalités
 
 - **Tableau de bord** (accueil) : PEA, alertes, état de l'application, opportunités PEA, mouvements du jour, favoris.
-- **Mon PEA** : diversification, suggestions de rééquilibrage, comparaison au CAC 40, lignes détenues, valeur et plus-value en direct, poids, conseil et alertes par ligne, plafond de versements.
+- **Mon PEA** : diversification, rééquilibrage par allocation cible avec ordres prêts à passer, comparaison au CAC 40, lignes détenues, valeur et plus-value en direct, poids, conseil et alertes par ligne, plafond de versements.
 - **Vérificateur d'état** au lancement (cours, sources, clés IA, base, fraîcheur, version) avec notification Windows si un contrôle se dégrade ;
   contrôle anti-hallucination des analyses IA (chiffres cités confrontés aux données, cohérence du verdict).
 - **Sécurité** : clés IA chiffrées (Windows DPAPI), API locale réservée à l'application, empreinte SHA-256 publiée, mises à jour automatiques.

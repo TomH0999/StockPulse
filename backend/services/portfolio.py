@@ -1,7 +1,7 @@
 """Mon PEA : lignes détenues, valorisation en direct, conseil et alertes par ligne, plafond de versements."""
 import catalog
 import store
-from services import advisor, yahoo
+from services import advisor, rebalance, yahoo
 
 PEA_CEILING = 150_000
 
@@ -96,28 +96,18 @@ def diversification(summary: dict) -> dict:
         e = info.get(l["symbol"], {})
         sectors[e.get("sector") or "?"] = sectors.get(e.get("sector") or "?", 0) + l["weight"]
         countries[e.get("country") or "?"] = countries.get(e.get("country") or "?", 0) + l["weight"]
-    warnings, actions = [], []
+    warnings = []
     if 0 < len(lines) < MIN_LINES:
         warnings.append({"code": "few_lines", "n": len(lines)})
     for l in lines:
         if l["weight"] > MAX_LINE and l["price"]:
-            excess = (l["weight"] - MAX_LINE) / 100 * summary["value"]
             warnings.append({"code": "line_heavy", "symbol": l["symbol"], "weight": l["weight"]})
-            actions.append({"code": "trim", "symbol": l["symbol"], "shares": max(1, int(excess / l["price"])), "target": MAX_LINE})
-        if l["advice"] and l["advice"]["verdict"] in ("SELL", "REDUCE"):
-            actions.append({"code": "review", "symbol": l["symbol"], "verdict": l["advice"]["verdict"]})
     for sec, w in sectors.items():
         if w > MAX_SECTOR and sec != "?":
             warnings.append({"code": "sector_heavy", "sector": sec, "weight": round(w, 1)})
-    held = {l["symbol"] for l in summary["lines"]}
-    verdicts = advisor.cached_verdicts()
-    ideas = sorted((e for e in catalog.entries() if e["pea"] and e["symbol"] not in held and (verdicts.get(e["symbol"]) or {}).get("score", 0) >= 15
-                    and sectors.get(e.get("sector") or "?", 0) < 10), key=lambda e: -verdicts[e["symbol"]]["score"])[:5]
-    for e in ideas:
-        actions.append({"code": "add", "symbol": e["symbol"], "name": e["name"], "sector": e.get("sector"), "score": verdicts[e["symbol"]]["score"]})
     return {"sectors": {k: round(v, 1) for k, v in sorted(sectors.items(), key=lambda kv: -kv[1])},
             "countries": {k: round(v, 1) for k, v in sorted(countries.items(), key=lambda kv: -kv[1])},
-            "warnings": warnings, "actions": actions}
+            "warnings": warnings, "rebalance": rebalance.plan(summary)}
 
 
 def benchmark(period: str = "1y", index: str = "^FCHI") -> dict:

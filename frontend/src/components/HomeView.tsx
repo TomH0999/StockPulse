@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Activity, Bell, Briefcase, Flame, Gauge, Sparkles, Star } from 'lucide-react';
-import { AlertEvent, api, Favorite, HealthReport, money, pct, ScreenerRow } from '../services/api';
+import { AlertEvent, api, Favorite, HealthReport, money, onPortfolioChanged, pct, ScreenerRow } from '../services/api';
 import { fill } from '../i18n';
 import { useI18n } from '../context';
 import { useScreener } from '../hooks/useScreener';
@@ -45,9 +45,15 @@ export function HomeView({ health, onRecheck, checking, onOpen, onNavigate }: Pr
   const [events, setEvents] = useState<AlertEvent[]>([]);
   const [reliability, setReliability] = useState<Record<string, { symbols: number; n: number; hit_rate: number | null }>>({});
   useEffect(() => {
-    api.favorites().then(setFavorites).catch(() => {});
-    api.alerts().then((a) => setEvents(a.events)).catch(() => {});
-    api.trackRecord().then(setReliability).catch(() => {});
+    const load = () => {
+      api.favorites().then(setFavorites).catch(() => {});
+      api.alerts().then((a) => setEvents(a.events)).catch(() => {});
+      api.trackRecord().then(setReliability).catch(() => {});
+    };
+    load();
+    const id = setInterval(load, 120000);
+    const off = onPortfolioChanged(load);
+    return () => { clearInterval(id); off(); };
   }, []);
 
   const pea = useMemo(() => rows.filter((r) => r.pea && r.price), [rows]);

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { RefreshCw, Sparkles, TrendingDown, TrendingUp, Repeat, CalendarClock, Zap } from 'lucide-react';
-import { Advice, api, errorMessage, pct } from '../services/api';
+import { Advice, api, errorMessage, onPortfolioChanged, pct } from '../services/api';
 import { useI18n, VERDICT_STYLE } from '../context';
 import { OrderModal } from './OrderModal';
 
@@ -29,7 +29,11 @@ export function AdvicePanel({ symbol, onAdvice, onShowDate }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [order, setOrder] = useState<'buy' | 'sell' | 'reduce' | null>(null);
   const [held, setHeld] = useState(false);
-  useEffect(() => { api.portfolio().then((p) => setHeld(p.lines.some((l) => l.symbol === symbol))).catch(() => {}); }, [symbol, order]);
+  useEffect(() => {
+    const check = () => api.portfolio().then((p) => setHeld(p.lines.some((l) => l.symbol === symbol))).catch(() => {});
+    check();
+    return onPortfolioChanged(check);
+  }, [symbol]);
 
   const load = (refresh = false) => {
     setLoading(true);

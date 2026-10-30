@@ -1,13 +1,13 @@
 import { useEffect, useState } from 'react';
 import { Copy, X } from 'lucide-react';
-import { api, errorMessage, OrderPlan } from '../services/api';
+import { api, errorMessage, notifyPortfolioChanged, OrderPlan } from '../services/api';
 import { useI18n } from '../context';
 import { fill } from '../i18n';
 import { VerdictBadge } from './VerdictBadge';
 
-interface Props { symbol: string; side: 'buy' | 'sell' | 'reduce'; onClose: () => void }
+interface Props { symbol: string; side: 'buy' | 'sell' | 'reduce'; onClose: () => void; initialAmount?: number; initialQuantity?: number }
 
-export function OrderModal({ symbol, side, onClose }: Props) {
+export function OrderModal({ symbol, side, onClose, initialAmount, initialQuantity }: Props) {
   const { t, lang } = useI18n();
   const [plan, setPlan] = useState<OrderPlan | null>(null);
   const [amount, setAmount] = useState('');
@@ -15,7 +15,7 @@ export function OrderModal({ symbol, side, onClose }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
 
-  const load = (a?: number) => api.orderPlan(symbol, side, a).then((p) => {
+  const load = (a?: number) => api.orderPlan(symbol, side, a ?? initialAmount, side === 'buy' ? undefined : initialQuantity).then((p) => {
     setPlan(p); setError(null);
     if (!amount && side === 'buy') setAmount(String(Math.round(p.amount + p.fees)));
     setExec({ quantity: String(p.quantity), price: String(p.limit), fees: String(p.fees) });
@@ -79,7 +79,7 @@ export function OrderModal({ symbol, side, onClose }: Props) {
               </div>
               <button className="btn-primary w-full justify-center !py-2" disabled={saved || !num(exec.quantity) || !num(exec.price)}
                 onClick={() => api.executeOrder(symbol, side, num(exec.quantity), num(exec.price), num(exec.fees) || 0)
-                  .then(() => setSaved(true)).catch((e) => setError(errorMessage(e)))}>
+                  .then(() => { setSaved(true); notifyPortfolioChanged(); }).catch((e) => setError(errorMessage(e)))}>
                 {saved ? `✓ ${t.orderSaved}` : t.orderDone}
               </button>
             </div>

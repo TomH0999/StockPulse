@@ -223,9 +223,9 @@ def set_account(deposits: float = Body(...), cash: float = Body(...)):
 
 
 @app.get("/api/orders/plan")
-def order_plan(symbol: str, side: str, amount: float | None = None):
+def order_plan(symbol: str, side: str, amount: float | None = None, quantity: float | None = None):
     try:
-        return orders.plan(symbol, side, amount)
+        return orders.plan(symbol, side, amount, quantity)
     except ValueError as e:
         raise HTTPException(400, str(e))
     except yahoo.YahooError as e:

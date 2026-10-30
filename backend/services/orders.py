@@ -34,8 +34,9 @@ def _round(price: float, up: bool) -> float:
     return round((math.ceil if up else math.floor)(price / t) * t, 4)
 
 
-def plan(symbol: str, side: str, amount: float | None = None) -> dict:
+def plan(symbol: str, side: str, amount: float | None = None, quantity: float | None = None) -> dict:
     sym = symbol.upper()
+    quantity_req = quantity
     if side not in ("buy", "sell", "reduce"):
         raise ValueError("Sens d'ordre inconnu")
     q = yahoo.quote(sym)
@@ -89,6 +90,8 @@ def plan(symbol: str, side: str, amount: float | None = None) -> dict:
     else:
         target_qty = held * MAX_LINE / line["weight"] if line and line.get("weight") and line["weight"] > MAX_LINE else held / 2
         quantity = max(1, math.floor(held - target_qty) if line and (line.get("weight") or 0) > MAX_LINE else math.floor(held / 2))
+    if quantity_override := quantity_req:
+        quantity = quantity_override
     quantity = min(quantity, held)
     if adv and adv["verdict"] in ("BUY", "STRONG_BUY"):
         warnings.append(f"verdict_{adv['verdict'].lower()}")

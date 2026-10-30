@@ -1,4 +1,4 @@
-name: Release Windows
+name: Release
 
 on:
   push:
@@ -10,8 +10,21 @@ permissions:
   contents: write
 
 jobs:
-  windows:
-    runs-on: windows-latest
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            target: --win
+            sep: ";"
+          - os: macos-latest
+            target: --mac
+            sep: ":"
+          - os: ubuntu-latest
+            target: --linux
+            sep: ":"
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
 
@@ -27,8 +40,8 @@ jobs:
 
       - name: Compiler le moteur Python
         working-directory: backend
-        run: |
-          pyinstaller --noconfirm --onedir --name stockpulse-backend --add-data "../market_news.db;." --add-data "catalog;catalog" --add-data "catalog_sources;catalog_sources" --collect-submodules uvicorn main.py
+        shell: bash
+        run: pyinstaller --noconfirm --onedir --name stockpulse-backend --add-data "../market_news.db${{ matrix.sep }}." --add-data "catalog${{ matrix.sep }}catalog" --add-data "catalog_sources${{ matrix.sep }}catalog_sources" --collect-submodules uvicorn main.py
 
       - uses: actions/setup-node@v4
         with:
@@ -38,19 +51,31 @@ jobs:
 
       - name: Construire l'installateur
         working-directory: frontend
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
         run: |
           npm ci
-          npm run electron:build
+          npm run build
+          npx tsc -p electron/tsconfig.json
+          npx electron-builder ${{ matrix.target }} --publish never
 
-      - name: Empreinte SHA-256
+      - name: Empreintes SHA-256
         working-directory: frontend/release
-        shell: pwsh
-        run: Get-ChildItem *.exe | ForEach-Object { "$((Get-FileHash $_ -Algorithm SHA256).Hash.ToLower())  $($_.Name)" } | Out-File -Encoding ascii SHA256SUMS.txt
+        shell: bash
+        run: |
+          shopt -s nullglob
+          for f in *.exe *.dmg *.zip *.AppImage *.deb; do
+            if command -v sha256sum >/dev/null; then sha256sum "$f"; else shasum -a 256 "$f"; fi
+          done > SHA256SUMS-${{ runner.os }}.txt
 
       - uses: actions/upload-artifact@v4
         with:
-          name: StockPulse-Windows
-          path: frontend/release/*.exe
+          name: StockPulse-${{ runner.os }}
+          path: |
+            frontend/release/*.exe
+            frontend/release/*.dmg
+            frontend/release/*.AppImage
+            frontend/release/*.deb
 
       - name: Lire la version
         id: version
@@ -65,7 +90,11 @@ jobs:
           target_commitish: ${{ github.sha }}
           files: |
             frontend/release/*.exe
+            frontend/release/*.dmg
+            frontend/release/*.zip
+            frontend/release/*.AppImage
+            frontend/release/*.deb
             frontend/release/*.blockmap
-            frontend/release/latest.yml
-            frontend/release/SHA256SUMS.txt
+            frontend/release/latest*.yml
+            frontend/release/SHA256SUMS-*.txt
           generate_release_notes: true

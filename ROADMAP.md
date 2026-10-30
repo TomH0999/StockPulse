@@ -46,7 +46,13 @@ Classement, liste des entreprises, analyses automatiques, pool de clés IA multi
 - [x] Éligibilité PEA selon le pays du siège (ISIN) au lieu de la place de cotation
 - [x] 86 tests automatiques (moteur, API, sécurité, ordres, alertes, catalogue) lancés sous Windows avant chaque publication
 
-## ⏸ En attente de vos retours avant la v2.0
+## ✅ v1.6.1 — Clés IA
+- [x] Analyse automatique limitée à 70 % du quota quotidien, priorité aux demandes de l'utilisateur, quota du jour détecté
 
-## v2.0 — Multi-plateforme
-- Installateurs macOS et Linux, signature de code Windows / macOS
+## ✅ v2.0 — Version finale multi-plateforme
+- [x] Rééquilibrage par allocation cible (conviction × fiabilité / volatilité, plafonds ligne et secteur), ordres préparés
+- [x] Mise à jour immédiate de tous les écrans après un ordre ou une modification du PEA
+- [x] Installateurs Windows, macOS (Apple Silicon) et Linux (AppImage, deb), empreintes SHA-256
+- [x] Guide de démarrage complet : docs/GUIDE.md
+- [ ] Signature de code Windows / macOS (certificat payant)
+- [ ] Clés chiffrées sur macOS / Linux (trousseau du système)
