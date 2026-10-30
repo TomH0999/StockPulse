@@ -4,36 +4,101 @@ import store
 from services import alerts, orders, portfolio
 
 
-def test_summary_math_alerts_and_currency(market):
-    market["changes"]["AI.PA"] = -12.0  # -6,7 % sur la séance
-    portfolio.upsert("MC.PA", 10, 500)
-    portfolio.upsert("AI.PA", 5, 150)
-    portfolio.upsert("AAPL", 2, 200)
-    portfolio.set_account(8000, 300)
+TODAY = "2026-01-15"
+
+
+def deposit(amount, day="2026-01-02"):
+    return portfolio.add_movement("deposit", day, amount=amount)
+
+
+def hold(sym, qty, pru, fees=0.0, extra_cash=0.0, day="2026-01-05"):
+    """Versement exact puis achat : la ligne a le PRU voulu (frais inclus)."""
+    deposit(qty * pru + fees + extra_cash)
+    return portfolio.add_movement("buy", day, sym, qty, pru, fees)
+
+
+def test_ledger_cash_pru_realized_by_hand(market):
+    deposit(10000)
+    portfolio.add_movement("buy", "2026-01-03", "MC.PA", 10, 300, 5)       # coût 3 005
+    portfolio.add_movement("buy", "2026-01-04", "MC.PA", 10, 340, 5)       # coût 3 405 -> 20 titres, coût 6 410
+    s = portfolio.add_movement("sell", "2026-01-05", "MC.PA", 5, 400, 4)   # PRU 320,5 -> gain 5*(400-320,5)-4 = 393,5
+    line = s["lines"][0]
+    assert line["quantity"] == 15 and line["avg_price"] == pytest.approx(320.5)
+    assert s["realized"] == pytest.approx(393.5)
+    assert s["cash"] == pytest.approx(10000 - 3005 - 3405 + 2000 - 4)
+    s = portfolio.add_movement("dividend", "2026-01-06", "MC.PA", amount=60)
+    assert s["cash"] == pytest.approx(5646) and s["dividends"] == 60 and s["lines"][0]["dividends"] == 60
+    # valeur au cours de 400 : 6 000 ; coût restant 15 * 320,5 = 4 807,5
+    assert line["value"] == 6000 and line["cost"] == pytest.approx(4807.5) and line["pnl"] == pytest.approx(1192.5)
+    assert line["pnl_percent"] == pytest.approx(24.81, abs=0.01)
+    assert s["total"] == pytest.approx(6000 + 5646) and s["deposits"] == 10000
+    assert s["lines"][0]["weight"] == pytest.approx(round(6000 / 11646 * 100, 1))
+    assert s["gain"] == pytest.approx(11646 - 10000) and s["performance"] == pytest.approx(16.46)
+    assert s["ceiling_left"] == 140000
+
+
+def test_ledger_rejects_inconsistent_movements(market):
+    with pytest.raises(ValueError, match="Liquidités insuffisantes"):
+        portfolio.add_movement("buy", "2026-01-05", "MC.PA", 1, 400)
+    deposit(1000)
+    with pytest.raises(ValueError, match="supérieure"):
+        portfolio.add_movement("sell", "2026-01-05", "MC.PA", 1, 400)
+    with pytest.raises(ValueError):
+        portfolio.add_movement("withdrawal", "2026-01-05", amount=5000)
+    with pytest.raises(ValueError, match="Plafond"):
+        portfolio.add_movement("deposit", "2026-01-05", amount=150000)
+    with pytest.raises(ValueError, match="Date"):
+        portfolio.add_movement("deposit", "2999-01-01", amount=1)
+    for bad in [dict(type="buy", day=TODAY, symbol="MC.PA", quantity=0, price=1), dict(type="deposit", day=TODAY, amount=-5),
+                dict(type="gift", day=TODAY, amount=5), dict(type="deposit", day=TODAY, amount=5, fees=-1)]:
+        with pytest.raises(ValueError):
+            portfolio.add_movement(**bad)
+    s = portfolio.add_movement("buy", "2026-01-05", "MC.PA", 2, 400)
+    dep = next(m for m in portfolio.movements() if m["type"] == "deposit")
+    with pytest.raises(ValueError):
+        portfolio.delete_movement(dep["id"])  # le versement finance l'achat
+    buy = next(m for m in portfolio.movements() if m["type"] == "buy")
+    assert portfolio.delete_movement(buy["id"])["cash"] == 1000
+
+
+def test_backdated_sell_before_buy_is_rejected(market):
+    deposit(1000)
+    portfolio.add_movement("buy", "2026-01-10", "AI.PA", 2, 180)
+    with pytest.raises(ValueError):
+        portfolio.add_movement("sell", "2026-01-09", "AI.PA", 1, 180)
+
+
+def test_summary_alerts_and_currency(market):
+    market["changes"]["AI.PA"] = -12.0
+    market["prices"]["USDEUR=X"] = 0.9
+    hold("MC.PA", 10, 500)
+    hold("AI.PA", 5, 150)
+    hold("AAPL", 2, 200, extra_cash=300)
     s = portfolio.summary()
-    mc = next(l for l in s["lines"] if l["symbol"] == "MC.PA")
-    assert mc["value"] == 4000 and mc["pnl"] == -1000 and mc["pnl_percent"] == -20 and "loss_15" in mc["alerts"]
-    ai = next(l for l in s["lines"] if l["symbol"] == "AI.PA")
-    assert "big_drop" in ai["alerts"]
-    aapl = next(l for l in s["lines"] if l["symbol"] == "AAPL")
-    assert "not_pea" in aapl["alerts"] and aapl["weight"] is None  # hors euro : exclu des totaux
-    assert s["value"] == 4900 and s["total"] == 5200 and s["performance"] == pytest.approx(-35.0)
-    assert sum(l["weight"] for l in s["lines"] if l["weight"]) == pytest.approx(100, abs=0.2)
+    by = {l["symbol"]: l for l in s["lines"]}
+    assert by["MC.PA"]["value"] == 4000 and by["MC.PA"]["pnl_percent"] == -20 and "loss_15" in by["MC.PA"]["alerts"]
+    assert "big_drop" in by["AI.PA"]["alerts"]
+    aapl = by["AAPL"]
+    assert "not_pea" in aapl["alerts"] and aapl["value"] == pytest.approx(2 * 300 * 0.9) and aapl["cost"] == pytest.approx(400 * 0.9)
+    assert s["cash"] == 300 and s["total"] == pytest.approx(4000 + 900 + 540 + 300)
+    assert sum(l["weight"] for l in s["lines"]) + s["cash"] / s["total"] * 100 == pytest.approx(100, abs=0.2)
+    assert s["day_change"] == pytest.approx(10 * 1 + 5 * -12 + 2 * 1 * 0.9)
 
 
-@pytest.mark.parametrize("q,p", [(0, 10), (-1, 10), (5, 0)])
-def test_invalid_lines(q, p):
-    with pytest.raises(ValueError):
-        portfolio.upsert("MC.PA", q, p)
-
-
-def test_account_validation():
-    with pytest.raises(ValueError):
-        portfolio.set_account(-1, 0)
+def test_legacy_data_is_migrated():
+    import store
+    store.set_setting("ledger_migrated", "")
+    with store.connect() as conn:
+        conn.execute("INSERT INTO holdings (symbol, quantity, avg_price) VALUES ('MC.PA', 2, 300)")
+    store.set_setting("pea_deposits", "1000")
+    store.set_setting("pea_cash", "500")
+    led = portfolio.ledger()
+    assert led["deposits"] == pytest.approx(1100) and led["cash"] == pytest.approx(500)
+    assert led["positions"]["MC.PA"]["quantity"] == 2 and portfolio.movements()[0]["type"] == "deposit"
 
 
 def test_diversification_and_rebalance(market):
-    portfolio.upsert("MC.PA", 10, 400)
+    hold("MC.PA", 10, 400)
     d = portfolio.diversification(portfolio.summary())
     codes = {w["code"] for w in d["warnings"]}
     assert {"few_lines", "line_heavy"} <= codes
@@ -41,21 +106,21 @@ def test_diversification_and_rebalance(market):
 
 
 def test_benchmark_base_100(market):
-    portfolio.upsert("MC.PA", 1, 400)
+    hold("MC.PA", 1, 400)
     b = portfolio.benchmark()
     assert b["series"][0]["portfolio"] == 100 and b["series"][0]["index"] == 100
 
 
 def test_order_buy_plan_and_execute(market):
-    portfolio.set_account(10000, 2000)
+    deposit(2000)
     p = orders.plan("AI.PA", "buy", amount=1000)
     assert p["quantity"] == 5 and p["limit"] >= 180 and p["fees"] == pytest.approx(max(1.99, p["amount"] * 0.005), abs=0.01)
     assert p["stop_loss"] < 180 < p["target"]
-    s = orders.execute("AI.PA", "buy", 5, 180, 4.5)
+    s = orders.execute("AI.PA", "buy", 5, 180, 4.5, day="2026-01-03")
     line = next(l for l in s["lines"] if l["symbol"] == "AI.PA")
     assert line["quantity"] == 5 and line["avg_price"] == pytest.approx(180.9)
     assert s["cash"] == pytest.approx(2000 - 904.5)
-    s = orders.execute("AI.PA", "buy", 5, 200, 0)
+    s = orders.execute("AI.PA", "buy", 5, 200, 0, day="2026-01-04")
     assert next(l for l in s["lines"] if l["symbol"] == "AI.PA")["avg_price"] == pytest.approx((904.5 + 1000) / 10)
 
 
@@ -66,7 +131,7 @@ def test_order_warnings(market):
 
 
 def test_order_sell_reduce_and_errors(market):
-    portfolio.upsert("MC.PA", 10, 300)
+    hold("MC.PA", 10, 300)
     r = orders.plan("MC.PA", "reduce")
     assert 1 <= r["quantity"] <= 10 and r["realized_pnl"] > 0
     assert orders.plan("MC.PA", "sell")["quantity"] == 10
@@ -77,7 +142,7 @@ def test_order_sell_reduce_and_errors(market):
     with pytest.raises(ValueError):
         orders.execute("MC.PA", "sell", 11, 400, 0)
     s = orders.execute("MC.PA", "sell", 10, 400, 2)
-    assert not s["lines"] and s["cash"] == pytest.approx(3998)
+    assert not s["lines"] and s["cash"] == pytest.approx(3998) and s["realized"] == pytest.approx(998)
     assert len(orders.journal()) == 1
 
 
@@ -89,7 +154,7 @@ def test_fees_settings():
 
 
 def test_alerts_price_drop_verdict_once(market):
-    portfolio.upsert("MC.PA", 1, 400)
+    hold("MC.PA", 1, 400)
     alerts.add("MC.PA", "below", 450)
     alerts.add("AI.PA", "above", 999)
     market["changes"]["MC.PA"] = -30.0
@@ -105,7 +170,7 @@ def test_alerts_price_drop_verdict_once(market):
 
 
 def test_buy_plan_respects_line_limit_on_new_pea(market):
-    portfolio.set_account(5000, 5000)
+    deposit(5000)
     p = orders.plan("AI.PA", "buy")
     assert p["amount"] <= 1000 and p["weight_after"] <= 20 and "line_heavy" not in p["warnings"]
 
@@ -121,9 +186,8 @@ def _verdicts(monkeypatch, data):
 def test_rebalance_sells_trims_and_diversifies(market, monkeypatch):
     rb = _verdicts(monkeypatch, {"MC.PA": ("SELL", -60), "AI.PA": ("BUY", 30), "OR.PA": ("STRONG_BUY", 60),
                                  "SAP.DE": ("BUY", 40), "TTE.PA": ("BUY", 35), "BNP.PA": ("BUY", 30)})
-    portfolio.upsert("MC.PA", 10, 400)
-    portfolio.upsert("AI.PA", 40, 150)
-    portfolio.set_account(15000, 2000)
+    hold("MC.PA", 10, 400)
+    hold("AI.PA", 40, 150, extra_cash=2000)
     p = rb.plan(portfolio.summary())
     by = {a["symbol"]: a for a in p["actions"]}
     assert by["MC.PA"]["side"] == "sell" and by["MC.PA"]["quantity"] == 10 and "verdict_sell" in by["MC.PA"]["reasons"]
@@ -136,9 +200,8 @@ def test_rebalance_sells_trims_and_diversifies(market, monkeypatch):
 
 
 def test_rebalance_adapts_to_advice(market, monkeypatch):
-    portfolio.upsert("MC.PA", 5, 400)
-    portfolio.upsert("AI.PA", 10, 180)
-    portfolio.set_account(5000, 0)
+    hold("MC.PA", 5, 400)
+    hold("AI.PA", 10, 180)
     up = _verdicts(monkeypatch, {"MC.PA": ("STRONG_BUY", 70), "AI.PA": ("HOLD", 0)}).plan(portfolio.summary())
     down = _verdicts(monkeypatch, {"MC.PA": ("HOLD", 0), "AI.PA": ("STRONG_BUY", 70)}).plan(portfolio.summary())
     assert up["target"]["MC.PA"] > up["target"]["AI.PA"] and down["target"]["AI.PA"] > down["target"]["MC.PA"]
@@ -147,12 +210,12 @@ def test_rebalance_adapts_to_advice(market, monkeypatch):
 def test_rebalance_skips_tiny_trades_and_empty_pea(market, monkeypatch):
     rb = _verdicts(monkeypatch, {"MC.PA": ("HOLD", 0)})
     assert rb.plan(portfolio.summary())["actions"] == []
-    portfolio.upsert("MC.PA", 1, 400)
+    hold("MC.PA", 1, 400)
     assert all(a["amount"] >= 150 or a["side"] == "sell" for a in rb.plan(portfolio.summary())["actions"])
 
 
 def test_reduce_plan_quantity_override(market):
-    portfolio.upsert("MC.PA", 10, 300)
+    hold("MC.PA", 10, 300)
     assert orders.plan("MC.PA", "reduce", quantity=3)["quantity"] == 3
     assert orders.plan("MC.PA", "reduce", quantity=50)["quantity"] == 10
 

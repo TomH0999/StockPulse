@@ -37,7 +37,7 @@ def fake_quote(sym, price=100.0, currency="EUR", change=1.0):
 def clean_db():
     with store.connect() as conn:
         for table in ("articles", "favorites", "settings", "advice_cache", "holdings", "advice_history", "price_alerts",
-                      "notified", "orders_log"):
+                      "notified", "orders_log", "pea_movements"):
             conn.execute(f"DELETE FROM {table}")
     yield
 

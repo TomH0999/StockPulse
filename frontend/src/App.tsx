@@ -37,7 +37,7 @@ export function App() {
   useEffect(() => {
     checkHealth(true).then((r) => {
       setShowHealth(true);
-      if (r.overall === 'ok') setTimeout(() => setShowHealth(false), 5000);
+      if (r.overall !== 'error') setTimeout(() => setShowHealth(false), r.overall === 'ok' ? 5000 : 12000);  // reste ouvert seulement en cas de problème
     }).catch(() => setShowHealth(true));
     const id = setInterval(() => checkHealth().catch(() => {}), 300000);
     return () => clearInterval(id);

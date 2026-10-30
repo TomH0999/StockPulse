@@ -8,7 +8,7 @@ from collections import defaultdict
 from datetime import datetime, timezone
 
 import store
-from services import ai_pool, fundamentals, news, yahoo
+from services import ai_pool, fundamentals, news, portfolio, yahoo
 
 CACHE_SECONDS = 3600
 VERDICTS = ["SELL", "REDUCE", "HOLD", "BUY", "STRONG_BUY"]
@@ -345,7 +345,7 @@ def local_advice(sym, lang, quote, hist, arts, now=None):
     }
 
 
-def _prompt(base, arts, lang):
+def _prompt(base, arts, lang, pea=None):
     t = base["technicals"]
     lines = [f"[{i}] {datetime.fromtimestamp(a['timestamp'], timezone.utc):%Y-%m-%d} | {a['source']} | {a['headline']}"
              + (f" — {a['summary'][:120]}" if a["summary"] else "") for i, a in enumerate(arts)]
@@ -357,12 +357,16 @@ PRICE DATA (daily, up to 10 years): {json.dumps(t)}
 QUANTITATIVE SIGNALS: {json.dumps(base['components'])}
 HISTORICAL PATTERNS: {json.dumps(base['patterns'], ensure_ascii=False)}
 MAJOR PRICE SHOCKS (most recent first) with surrounding news: {json.dumps(evs, ensure_ascii=False)}
+INVESTOR'S PEA (French tax wrapper, personal data, EUR): {json.dumps(pea, ensure_ascii=False) if pea else "unknown"}
 RECENT ARTICLES (numbered):
 {chr(10).join(lines)}
 
 Think like an investor: read every article, weigh its real impact on the business (not only its tone), relate the news to the price
 history and past shocks, spot recurring patterns (how the stock reacts to earnings, legal issues, macro, etc.) and judge whether the
 current situation is an opportunity or a threat. Be concrete and cite facts from the articles.
+Tailor the advice to the investor's PEA: if they hold the stock, take into account their average cost, unrealised gain or loss,
+holding period and the line's weight (a line above 20% of the PEA or a sector above 35% is too concentrated); if they do not,
+consider their available cash and diversification. Say concretely what they should do with their position.
 
 Answer ONLY with JSON, all text in {LANG_NAMES.get(lang, 'English')}:
 {{"verdict": "STRONG_BUY|BUY|HOLD|REDUCE|SELL", "score": <int -100..100>, "confidence": "low|medium|high",
@@ -397,10 +401,16 @@ def advise(sym, lang="fr", force=False, use_ai=True, max_wait=20.0, backfill=Tru
         result["track_record"] = None
         print(f"Backtest {sym}: {e}")
 
+    if use_ai and not want_ai:
+        result["ai_error"] = "Aucune clé IA : ajoutez-en une dans Paramètres → Clés IA"
     if want_ai:
         recent = arts[:50]
         try:
-            ai, provider = ai_pool.complete_json(_prompt(result, recent, lang), max_wait, background)
+            try:
+                pea = portfolio.context(sym)
+            except Exception:
+                pea = None
+            ai, provider = ai_pool.complete_json(_prompt(result, recent, lang, pea), max_wait, background)
             v = ai.get("verdict") if ai.get("verdict") in VERDICTS else result["verdict"]
             local_score = result["score"]
             known = _known_values(result, quote)

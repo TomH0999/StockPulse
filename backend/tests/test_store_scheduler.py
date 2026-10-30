@@ -28,11 +28,14 @@ def test_scheduler_queue_priorities(market, monkeypatch):
     with store.connect() as conn:
         conn.execute("INSERT INTO favorites (symbol, name, position) VALUES ('ZZFAV.PA', '', 1)")
     monkeypatch.setattr(scheduler.screener, "snapshot", lambda max_age=0: ({}, time.time()))
-    q = scheduler._queue(ai=False)
+    q = scheduler._queue()
     assert q[0] == "ZZFAV.PA" and len(q) > 500
     advisor.advise("MC.PA", "fr")
-    assert "MC.PA" not in scheduler._queue(ai=False)  # analyse locale fraîche
-    assert scheduler._queue(ai=True) == ["ZZFAV.PA"]  # IA automatique : favoris et PEA seulement
+    assert "MC.PA" not in scheduler._queue()  # analyse fraîche
+
+
+def test_no_automatic_ai_loop():
+    assert not hasattr(scheduler, "_ai_loop")
 
 
 def test_frontend_fallback_route():
@@ -44,10 +47,3 @@ def test_frontend_fallback_route():
     assert r.status_code == 200 and "<div id=\"root\">" in r.text
 
 
-def test_ai_queue_limited_to_portfolio_and_favorites(market, monkeypatch):
-    with store.connect() as conn:
-        conn.execute("INSERT INTO favorites (symbol, name, position) VALUES ('ZZFAV.PA', '', 1)")
-    monkeypatch.setattr(scheduler.screener, "snapshot", lambda max_age=0: ({}, time.time()))
-    assert scheduler._queue(ai=True) == ["ZZFAV.PA"]
-    store.set_setting("auto_ai_all", "1")
-    assert len(scheduler._queue(ai=True)) > 500

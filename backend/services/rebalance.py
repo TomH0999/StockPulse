@@ -107,7 +107,7 @@ def plan(summary: dict) -> dict:
         if side == "sell":
             reasons.append("not_pea" if (info.get(s) or {}).get("pea") is False else "verdict_sell")
         elif side == "reduce":
-            if s in held and held[s]["weight"] and held[s]["weight"] / 100 * summary["value"] / total > MAX_LINE:
+            if s in held and (held[s]["weight"] or 0) / 100 > MAX_LINE:
                 reasons.append("over_line_cap")
             if adv and adv["verdict"] in ("REDUCE", "HOLD"):
                 reasons.append(f"verdict_{adv['verdict'].lower()}")

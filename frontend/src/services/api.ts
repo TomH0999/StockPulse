@@ -142,11 +142,8 @@ export interface AiSettings {
   keys: AiKey[];
   auto: {
     enabled: boolean;
-    ai_hours: number;
-    ai_all: boolean;
     total: number;
     analysed: number;
-    ai_analysed: number;
     keys_available: number;
     last_error: string | null;
   };
@@ -159,8 +156,17 @@ export interface HealthReport {
   version: string;
 }
 
+export interface Movement {
+  id: number; day: string; type: 'deposit' | 'withdrawal' | 'buy' | 'sell' | 'dividend';
+  symbol: string | null; quantity: number | null; price: number | null; fees: number; amount: number | null;
+}
+
 export interface PortfolioLine {
-  id: number;
+  id: string;
+  realized: number;
+  dividends: number;
+  since: string;
+  fx: number | null;
   symbol: string;
   name: string;
   quantity: number;
@@ -186,6 +192,12 @@ export interface Portfolio {
   day_change: number;
   cash: number;
   deposits: number;
+  withdrawals: number;
+  realized: number;
+  dividends: number;
+  fees: number;
+  gain: number;
+  ceiling_left: number;
   ceiling: number;
   total: number;
   performance: number | null;
@@ -238,7 +250,7 @@ export const api = {
   search: (q: string) => get<SearchResult[]>('/market/search', { q }),
   news: (symbol: string, refresh = false) =>
     get<{ articles: Article[]; backfilling: boolean }>(`/market/news/${encodeURIComponent(symbol)}`, { refresh }),
-  advice: (symbol: string, lang: Lang, refresh = false, ai = true) =>
+  advice: (symbol: string, lang: Lang, refresh = false, ai = false) =>
     get<Advice>(`/advice/${encodeURIComponent(symbol)}`, { lang, refresh, ai }),
   favorites: () => get<Favorite[]>('/favorites'),
   addFavorite: async (symbol: string, name: string) => (await apiClient.post<Favorite[]>('/favorites', { symbol, name })).data,
@@ -259,15 +271,14 @@ export const api = {
   alerts: () => get<{ price_alerts: PriceAlert[]; events: AlertEvent[] }>('/alerts'),
   addAlert: async (symbol: string, direction: string, price: number) => (await apiClient.post<PriceAlert[]>('/alerts', { symbol, direction, price })).data,
   removeAlert: async (id: number) => (await apiClient.delete<PriceAlert[]>(`/alerts/${id}`)).data,
-  addLine: async (symbol: string, quantity: number, avg_price: number) => (await apiClient.post<Portfolio>('/portfolio/lines', { symbol, quantity, avg_price })).data,
-  editLine: async (id: number, symbol: string, quantity: number, avg_price: number) => (await apiClient.put<Portfolio>(`/portfolio/lines/${id}`, { symbol, quantity, avg_price })).data,
-  deleteLine: async (id: number) => (await apiClient.delete<Portfolio>(`/portfolio/lines/${id}`)).data,
-  setAccount: async (deposits: number, cash: number) => (await apiClient.put<Portfolio>('/portfolio/account', { deposits, cash })).data,
+  movements: () => get<Movement[]>('/portfolio/movements'),
+  addMovement: async (m: Partial<Movement>) => (await apiClient.post<Portfolio>('/portfolio/movements', m)).data,
+  deleteMovement: async (id: number) => (await apiClient.delete<Portfolio>(`/portfolio/movements/${id}`)).data,
   screener: () => get<{ updated: number; rows: ScreenerRow[] }>('/screener'),
   aiSettings: () => get<AiSettings>('/settings/ai'),
   addAiKey: async (provider: string, key: string) => (await apiClient.post<AiSettings>('/settings/ai/keys', { provider, key })).data,
   removeAiKey: async (id: string) => (await apiClient.delete<AiSettings>(`/settings/ai/keys/${id}`)).data,
-  setAuto: async (enabled: boolean, ai_hours: number, ai_all = false) => (await apiClient.put<AiSettings>('/settings/auto', { enabled, ai_hours, ai_all })).data,
+  setAuto: async (enabled: boolean) => (await apiClient.put<AiSettings>('/settings/auto', { enabled })).data,
 };
 
 export const errorMessage = (e: unknown): string =>

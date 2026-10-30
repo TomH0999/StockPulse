@@ -37,8 +37,7 @@ efficace. Collez chaque clé : elle est testée avant d'être enregistrée (chif
 Règles importantes :
 - Les quotas sont **par compte** : deux clés d'un même compte partagent le même quota, et créer plusieurs comptes chez un même
   fournisseur est en général interdit par ses conditions d'utilisation.
-- L'application garde 30 % de chaque quota pour vos propres demandes et limite l'analyse IA automatique à votre PEA et vos
-  favoris. La case « Utiliser aussi l'IA sur tout le catalogue » consomme beaucoup plus de quota : à éviter avec des clés gratuites.
+- L'IA n'est utilisée que lorsque vous cliquez sur « Analyser avec l'IA » (1 requête par clic) : aucun quota n'est consommé en arrière-plan.
 - Une clé « en pause » affiche la raison (limite de débit ou quota du jour atteint) et l'heure de reprise.
 - Ne partagez jamais vos clés. Si une clé a été exposée, supprimez-la sur le site du fournisseur et créez-en une autre.
 
@@ -61,14 +60,15 @@ Les offres gratuites couvrent surtout les actions américaines ; pour les valeur
 - **Frais de courtage** : renseignez ceux de votre courtier pour des ordres justes. Exemples courants (à vérifier sur la grille
   tarifaire de votre courtier) : 0,5 % avec un minimum autour de 2 € chez les banques en ligne, frais fixes de quelques euros
   chez les courtiers à bas coût.
-- **Analyses automatiques** : laissez-les activées ; renouvellement IA toutes les 12 h par défaut.
+- **Analyses automatiques** : l'analyse locale tourne seule en arrière-plan ; l'analyse IA se lance à la demande avec le bouton « Analyser avec l'IA » (elle tient compte de votre position et de votre PEA).
 
 ## 5. Renseigner votre PEA (5 min) — onglet « Mon PEA »
 
-1. **Total des versements** : la somme versée depuis l'ouverture (sert au plafond de 150 000 € et à la performance).
-2. **Liquidités** : le solde espèces disponible sur le PEA.
-3. **Lignes** : pour chaque action détenue, recherchez-la, saisissez la quantité et le prix de revient unitaire (PRU) indiqués
-   par votre courtier.
+Le PEA fonctionne comme un journal de mouvements : liquidités, PRU, plus-values et plafond sont calculés automatiquement.
+1. **Versement** : saisissez vos versements (date, montant) ; c'est la seule façon d'alimenter le PEA.
+2. **Achat** : pour chaque action détenue, saisissez vos achats (date, quantité, prix unitaire, frais) tels qu'indiqués par
+   votre courtier ; le PRU est calculé (frais inclus). Pour une reprise rapide, un seul achat au PRU affiché par votre courtier suffit.
+3. **Vente / Dividende / Retrait** : à saisir au fil de l'eau ; la plus-value réalisée est calculée à chaque vente.
 4. Consultez **Suggestions de rééquilibrage** : chaque action proposée a sa raison et un bouton « Préparer l'ordre ».
 5. Après chaque ordre réellement passé chez le courtier, cliquez « J'ai passé cet ordre » : quantités, PRU et liquidités se
    mettent à jour partout.

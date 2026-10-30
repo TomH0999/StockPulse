@@ -1,6 +1,6 @@
 {
   "name": "stockpulse-workspace",
-  "version": "2.0.0",
+  "version": "2.1.0",
   "description": "StockPulse - centrale bourse & actualités",
   "private": true,
   "scripts": {

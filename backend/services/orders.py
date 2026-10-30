@@ -1,6 +1,7 @@
 """Générateur d'ordres : prépare l'ordre à saisir chez le courtier (achat, renforcement, allègement, vente),
 puis met à jour Mon PEA une fois l'ordre passé."""
 import math
+from datetime import date
 
 import catalog
 import store
@@ -104,38 +105,14 @@ def plan(symbol: str, side: str, amount: float | None = None, quantity: float | 
             "advice": adv, "warnings": warnings, "fees_settings": fees_settings()}
 
 
-def execute(symbol: str, side: str, quantity: float, price: float, fees: float) -> dict:
-    """Enregistre un ordre exécuté : met à jour la ligne (quantité, prix de revient) et les liquidités."""
-    sym = symbol.upper()
-    if quantity <= 0 or price <= 0 or fees < 0:
-        raise ValueError("Quantité, prix et frais doivent être positifs")
-    lines = [l for l in portfolio.lines() if l["symbol"] == sym]
-    held = sum(l["quantity"] for l in lines)
-    cost = held and sum(l["quantity"] * l["avg_price"] for l in lines) / held
-    cash = float(store.get_setting("pea_cash", "0") or 0)
-    with store.connect() as conn:
-        for l in lines[1:]:
-            conn.execute("DELETE FROM holdings WHERE id = ?", (l["id"],))
-    if side == "buy":
-        new_qty = held + quantity
-        new_pru = (held * cost + quantity * price + fees) / new_qty
-        portfolio.upsert(sym, new_qty, round(new_pru, 4), lines[0]["id"] if lines else None)
-        cash = max(0.0, cash - quantity * price - fees)
-    elif side in ("sell", "reduce"):
-        if quantity > held + 1e-9:
-            raise ValueError(f"Quantité supérieure à la position détenue ({held})")
-        remaining = held - quantity
-        if remaining <= 1e-9:
-            portfolio.delete(lines[0]["id"])
-        else:
-            portfolio.upsert(sym, remaining, cost, lines[0]["id"])
-        cash += quantity * price - fees
-    else:
+def execute(symbol: str, side: str, quantity: float, price: float, fees: float, day: str | None = None) -> dict:
+    """Enregistre un ordre exécuté dans le journal du PEA (prix de revient, liquidités et plus-values recalculés)."""
+    if side not in ("buy", "sell", "reduce"):
         raise ValueError("Sens d'ordre inconnu")
-    store.set_setting("pea_cash", str(round(cash, 2)))
+    pf = portfolio.add_movement("buy" if side == "buy" else "sell", day or date.today().isoformat(), symbol, quantity, price, fees)
     with store.connect() as conn:
-        conn.execute("INSERT INTO orders_log (symbol, side, quantity, price, fees) VALUES (?, ?, ?, ?, ?)", (sym, side, quantity, price, fees))
-    return portfolio.summary()
+        conn.execute("INSERT INTO orders_log (symbol, side, quantity, price, fees) VALUES (?, ?, ?, ?, ?)", (symbol.upper(), side, quantity, price, fees))
+    return pf
 
 
 def journal() -> list[dict]:

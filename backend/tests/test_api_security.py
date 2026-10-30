@@ -34,24 +34,29 @@ def test_favorites_crud_and_order(market):
 
 
 def test_portfolio_and_orders_api(market):
-    assert client.post("/api/portfolio/lines", json={"symbol": "NOPE", "quantity": 1, "avg_price": 1}).status_code == 404
-    assert client.post("/api/portfolio/lines", json={"symbol": "MC.PA", "quantity": -1, "avg_price": 1}).status_code == 400
-    s = client.post("/api/portfolio/lines", json={"symbol": "MC.PA", "quantity": 2, "avg_price": 350}).json()
-    lid = s["lines"][0]["id"]
-    assert client.put(f"/api/portfolio/lines/{lid}", json={"symbol": "MC.PA", "quantity": 3, "avg_price": 350}).json()["lines"][0]["quantity"] == 3
-    assert client.put("/api/portfolio/account", json={"deposits": 5000, "cash": 1000}).json()["cash"] == 1000
-    assert client.put("/api/portfolio/account", json={"deposits": -5, "cash": 0}).status_code == 400
+    mv = lambda **k: client.post("/api/portfolio/movements", json=k)  # noqa: E731
+    assert mv(type="buy", day="2026-01-02", symbol="NOPE", quantity=1, price=1).status_code == 404
+    assert mv(type="buy", day="2026-01-02", symbol="MC.PA", quantity=1, price=400).status_code == 400  # pas de liquidités
+    assert mv(type="deposit", day="2026-01-02", amount=5000).json()["cash"] == 5000
+    s = mv(type="buy", day="2026-01-03", symbol="MC.PA", quantity=3, price=350, fees=3).json()
+    assert s["lines"][0]["avg_price"] == pytest.approx(351) and s["cash"] == pytest.approx(3947)
     plan = client.get("/api/orders/plan", params={"symbol": "AI.PA", "side": "buy"}).json()
     assert plan["quantity"] > 0
     assert client.get("/api/orders/plan", params={"symbol": "AI.PA", "side": "sell"}).status_code == 400
     assert client.post("/api/orders/execute", json={"symbol": "MC.PA", "side": "sell", "quantity": 99, "price": 1}).status_code == 400
     s = client.post("/api/orders/execute", json={"symbol": "MC.PA", "side": "sell", "quantity": 3, "price": 400, "fees": 2}).json()
-    assert s["lines"] == [] and client.get("/api/orders").json()[0]["side"] == "sell"
+    assert s["lines"] == [] and s["realized"] == pytest.approx(3 * (400 - 351) - 2) and client.get("/api/orders").json()[0]["side"] == "sell"
     assert client.put("/api/orders/fees", json={"pct": 50, "minimum": 1}).status_code == 400
-    client.post("/api/portfolio/lines", json={"symbol": "MC.PA", "quantity": 1, "avg_price": 400})
+    mv(type="buy", day="2026-01-04", symbol="MC.PA", quantity=1, price=400)
     a = client.get("/api/portfolio/analysis").json()
     assert "diversification" in a and a["benchmark"]["series"]
-    assert client.delete(f"/api/portfolio/lines/{client.get('/api/portfolio').json()['lines'][0]['id']}").json()["lines"] == []
+    moves = client.get("/api/portfolio/movements").json()
+    assert [m["type"] for m in moves] == ["deposit", "buy", "buy", "sell"]  # ordre chronologique (vente datée du jour)
+    assert client.delete(f"/api/portfolio/movements/{moves[0]['id']}").status_code == 400  # finance les achats
+    last_buy = [m for m in moves if m["type"] == "buy"][-1]
+    assert client.delete(f"/api/portfolio/movements/{last_buy['id']}").json()["lines"] == []  # la vente reste couverte par le 1er achat
+    first_buy = [m for m in moves if m["type"] == "buy"][0]
+    assert client.delete(f"/api/portfolio/movements/{first_buy['id']}").status_code == 400  # la vente n'aurait plus de titres
 
 
 def test_alerts_api(market):
@@ -63,6 +68,7 @@ def test_alerts_api(market):
 
 def test_advice_endpoints(market):
     r = client.get("/api/advice/MC.PA", params={"lang": "en"}).json()
+    assert r["engine"] == "local"  # l'IA n'est utilisée que sur demande (ai=true)
     assert r["verdict"] and r["track_record"]
     assert client.get("/api/advice/MC.PA/history").json()[0]["verdict"] == r["verdict"]
     assert client.get("/api/track-record").json()["6m"]["symbols"] == 1
@@ -74,7 +80,7 @@ def test_settings_endpoints(monkeypatch):
     s = client.post("/api/settings/ai/keys", json={"provider": "groq", "key": "gsk_secret_value"}).json()
     assert s["keys"][0]["hint"] == "…alue" and "gsk_secret_value" not in str(s)
     assert client.post("/api/settings/ai/keys", json={"provider": "bad", "key": "x"}).status_code == 400
-    assert client.put("/api/settings/auto", json={"enabled": False, "ai_hours": 9999}).json()["auto"]["ai_hours"] == 168
+    assert client.put("/api/settings/auto", json={"enabled": False}).json()["auto"]["enabled"] is False
     assert client.delete(f"/api/settings/ai/keys/{s['keys'][0]['id']}").json()["keys"] == []
     monkeypatch.setattr(fundamentals, "_fetch", lambda e, s: None)
     assert client.post("/api/settings/data/keys", json={"provider": "fmp", "key": "x"}).status_code == 400

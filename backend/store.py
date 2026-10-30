@@ -56,6 +56,10 @@ def init():
                 id INTEGER PRIMARY KEY AUTOINCREMENT, symbol TEXT, side TEXT, quantity REAL, price REAL, fees REAL,
                 at INTEGER DEFAULT (strftime('%s','now'))
             );
+            CREATE TABLE IF NOT EXISTS pea_movements (
+                id INTEGER PRIMARY KEY AUTOINCREMENT, day TEXT NOT NULL, type TEXT NOT NULL, symbol TEXT,
+                quantity REAL, price REAL, fees REAL DEFAULT 0, amount REAL, created_at INTEGER DEFAULT (strftime('%s','now'))
+            );
             CREATE INDEX IF NOT EXISTS idx_articles_symbol_ts ON articles(symbol, timestamp);
         ''')
         cols = [r[1] for r in conn.execute("PRAGMA table_info(articles)")]

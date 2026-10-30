@@ -79,7 +79,7 @@ def get_news(symbol: str, refresh: bool = False):
 
 
 @app.get("/api/advice/{symbol}")
-def get_advice(symbol: str, lang: str = "fr", refresh: bool = False, ai: bool = True):
+def get_advice(symbol: str, lang: str = "fr", refresh: bool = False, ai: bool = False):
     if store.get_setting("ui_lang") != lang:
         store.set_setting("ui_lang", lang)
     return _yahoo(advisor.advise, symbol, lang, refresh, ai)
@@ -188,38 +188,28 @@ def portfolio_analysis(period: str = "1y"):
     return {"diversification": portfolio.diversification(portfolio.summary()), "benchmark": portfolio.benchmark(period)}
 
 
-@app.post("/api/portfolio/lines")
-def add_line(symbol: str = Body(...), quantity: float = Body(...), avg_price: float = Body(...)):
-    _yahoo(yahoo.quote, symbol)  # refuse un symbole inconnu
+@app.get("/api/portfolio/movements")
+def get_movements():
+    return portfolio.movements()
+
+
+@app.post("/api/portfolio/movements")
+def add_movement(type: str = Body(...), day: str = Body(...), symbol: str | None = Body(None), quantity: float | None = Body(None),
+                 price: float | None = Body(None), fees: float = Body(0), amount: float | None = Body(None)):
+    if type in ("buy", "sell") and symbol:
+        _yahoo(yahoo.quote, symbol)  # refuse un symbole inconnu
     try:
-        portfolio.upsert(symbol, quantity, avg_price)
+        return portfolio.add_movement(type, day, symbol, quantity, price, fees, amount)
     except ValueError as e:
         raise HTTPException(400, str(e))
-    return portfolio.summary()
 
 
-@app.put("/api/portfolio/lines/{line_id}")
-def edit_line(line_id: int, symbol: str = Body(...), quantity: float = Body(...), avg_price: float = Body(...)):
+@app.delete("/api/portfolio/movements/{movement_id}")
+def delete_movement(movement_id: int):
     try:
-        portfolio.upsert(symbol, quantity, avg_price, line_id)
+        return portfolio.delete_movement(movement_id)
     except ValueError as e:
-        raise HTTPException(400, str(e))
-    return portfolio.summary()
-
-
-@app.delete("/api/portfolio/lines/{line_id}")
-def delete_line(line_id: int):
-    portfolio.delete(line_id)
-    return portfolio.summary()
-
-
-@app.put("/api/portfolio/account")
-def set_account(deposits: float = Body(...), cash: float = Body(...)):
-    try:
-        portfolio.set_account(deposits, cash)
-    except ValueError as e:
-        raise HTTPException(400, str(e))
-    return portfolio.summary()
+        raise HTTPException(400, f"Suppression impossible : {e}")
 
 
 @app.get("/api/orders/plan")
@@ -233,9 +223,10 @@ def order_plan(symbol: str, side: str, amount: float | None = None, quantity: fl
 
 
 @app.post("/api/orders/execute")
-def order_execute(symbol: str = Body(...), side: str = Body(...), quantity: float = Body(...), price: float = Body(...), fees: float = Body(0)):
+def order_execute(symbol: str = Body(...), side: str = Body(...), quantity: float = Body(...), price: float = Body(...), fees: float = Body(0),
+                  day: str | None = Body(None)):
     try:
-        return orders.execute(symbol, side, quantity, price, fees)
+        return orders.execute(symbol, side, quantity, price, fees, day)
     except ValueError as e:
         raise HTTPException(400, str(e))
 
@@ -300,10 +291,8 @@ def remove_ai_key(key_id: str):
 
 
 @app.put("/api/settings/auto")
-def set_auto(enabled: bool = Body(...), ai_hours: float = Body(12), ai_all: bool = Body(False)):
+def set_auto(enabled: bool = Body(..., embed=True)):
     store.set_setting("auto_enabled", "1" if enabled else "0")
-    store.set_setting("auto_ai_all", "1" if ai_all else "0")
-    store.set_setting("auto_ai_hours", str(max(1.0, min(168.0, ai_hours))))
     return get_ai_settings()
 
 

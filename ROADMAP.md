@@ -55,4 +55,10 @@ Classement, liste des entreprises, analyses automatiques, pool de clés IA multi
 - [x] Installateurs Windows, macOS (Apple Silicon) et Linux (AppImage, deb), empreintes SHA-256
 - [x] Guide de démarrage complet : docs/GUIDE.md
 - [ ] Signature de code Windows / macOS (certificat payant)
+
+## ✅ v2.1 — PEA tenu comme un journal
+- [x] Versements, retraits, achats, ventes, dividendes ; liquidités, PRU (frais inclus), plus-values réalisées et plafond calculés
+- [x] Données des versions précédentes converties automatiquement ; mouvements incohérents refusés
+- [x] Lignes hors euro converties ; poids calculés sur la valeur totale du PEA
+- [x] L'agent IA tient compte de la position et du PEA ; IA uniquement à la demande (plus d'analyse IA automatique)
 - [ ] Clés chiffrées sur macOS / Linux (trousseau du système)

@@ -1,20 +1,17 @@
 """Analyses automatiques en arrière-plan : analyse locale de tout le catalogue, puis analyse IA selon la capacité des clés."""
 import threading
 import time
-from concurrent.futures import ThreadPoolExecutor
 
 import catalog
 import store
 from services import advisor, ai_pool, portfolio, screener
 
 LOCAL_MAX_AGE = 6 * 3600
-status = {"local_done": 0, "ai_done": 0, "ai_running": 0, "last_error": None}
+status = {"local_done": 0, "last_error": None}
 
 
 def settings() -> dict:
-    return {"enabled": store.get_setting("auto_enabled", "1") == "1",
-            "ai_hours": float(store.get_setting("auto_ai_hours", "12")),
-            "ai_all": store.get_setting("auto_ai_all", "0") == "1"}
+    return {"enabled": store.get_setting("auto_enabled", "1") == "1"}
 
 
 def _lang() -> str:
@@ -29,67 +26,29 @@ def _favorites() -> list[str]:
     return held + [s for s in favs if s not in held]
 
 
-def _queue(ai: bool) -> list[str]:
-    """Symboles à analyser, par priorité : favoris, puis plus fortes variations du jour, puis le reste."""
+def _queue() -> list[str]:
+    """Analyse locale à rafraîchir, par priorité : PEA et favoris, puis plus fortes variations du jour."""
     now = time.time()
     cache = advisor.cached_verdicts()
     snap, _ = screener.snapshot(max_age=3600)
     favs = _favorites()
-    if ai and not settings()["ai_all"]:
-        order = favs  # IA automatique réservée au PEA et aux favoris (quotas gratuits)
-    else:
-        order = favs + sorted((s for s in catalog.core_symbols() if s not in favs), key=lambda s: -abs((snap.get(s) or {}).get("chg_1d") or 0))
-    max_ai_age = settings()["ai_hours"] * 3600
-    out = []
-    for s in order:
-        c = cache.get(s)
-        if ai:
-            if not c or c["engine"] == "local" or now - c["generated_at"] > max_ai_age:
-                out.append(s)
-        elif not c or (c["engine"] == "local" and now - c["generated_at"] > LOCAL_MAX_AGE):
-            out.append(s)
-    return out
+    order = favs + sorted((s for s in catalog.core_symbols() if s not in favs), key=lambda s: -abs((snap.get(s) or {}).get("chg_1d") or 0))
+    # une analyse IA (faite à la demande) est conservée tant qu'elle a moins d'un jour
+    return [s for s in order if not (c := cache.get(s))
+            or now - c["generated_at"] > (LOCAL_MAX_AGE if c["engine"] == "local" else 86400)]
 
 
 def _local_loop():
     while True:
         try:
             if settings()["enabled"]:
-                for s in _queue(ai=False)[:20]:
+                for s in _queue()[:20]:
                     advisor.advise(s, _lang(), force=True, use_ai=False, backfill=s in _favorites(), fetch_fundamentals=s in _favorites())
                     status["local_done"] += 1
                     time.sleep(1)
         except Exception as e:
             status["last_error"] = str(e)[:200]
         time.sleep(30)
-
-
-def _ai_one(sym: str) -> bool:
-    status["ai_running"] += 1
-    try:
-        r = advisor.advise(sym, _lang(), force=True, use_ai=True, max_wait=0, backfill=False, fetch_fundamentals=False, background=True)
-        if r["engine"] != "local":
-            status["ai_done"] += 1
-            return True
-        status["last_error"] = r.get("ai_error")
-        return False
-    finally:
-        status["ai_running"] -= 1
-
-
-def _ai_loop():
-    while True:
-        try:
-            workers = ai_pool.available_count(background=True)
-            if settings()["enabled"] and workers:
-                batch = _queue(ai=True)[:workers]
-                if batch:
-                    with ThreadPoolExecutor(max_workers=len(batch)) as pool:
-                        if any(pool.map(_ai_one, batch)):
-                            continue
-        except Exception as e:
-            status["last_error"] = str(e)[:200]
-        time.sleep(20)
 
 
 def _snapshot_loop():
@@ -114,7 +73,8 @@ def _catalog_loop():
 
 
 def start():
-    for target in (_snapshot_loop, _local_loop, _ai_loop, _catalog_loop):
+    # Analyse IA uniquement à la demande de l'utilisateur (quotas gratuits) : pas de boucle IA automatique
+    for target in (_snapshot_loop, _local_loop, _catalog_loop):
         threading.Thread(target=target, daemon=True).start()
 
 
@@ -123,6 +83,5 @@ def progress() -> dict:
     core = set(catalog.core_symbols()) | set(_favorites())
     total = len(core)
     analysed = sum(1 for s in core if s in cache)
-    ai = sum(1 for s in core if s in cache and cache[s]["engine"] != "local")
-    return {**settings(), **status, "total": total, "analysed": analysed, "ai_analysed": ai,
+    return {**settings(), **status, "total": total, "analysed": analysed,
             "keys_available": ai_pool.available_count(), "keys": len(ai_pool.keys())}

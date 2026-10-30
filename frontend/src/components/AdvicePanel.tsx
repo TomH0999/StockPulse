@@ -35,10 +35,10 @@ export function AdvicePanel({ symbol, onAdvice, onShowDate }: Props) {
     return onPortfolioChanged(check);
   }, [symbol]);
 
-  const load = (refresh = false) => {
+  const load = (refresh = false, ai = false) => {
     setLoading(true);
     setError(null);
-    api.advice(symbol, lang, refresh)
+    api.advice(symbol, lang, refresh, ai)
       .then((a) => { setAdvice(a); onAdvice(a); })
       .catch((e) => setError(errorMessage(e)))
       .finally(() => setLoading(false));
@@ -56,9 +56,14 @@ export function AdvicePanel({ symbol, onAdvice, onShowDate }: Props) {
       {order && <OrderModal symbol={symbol} side={order} onClose={() => setOrder(null)} />}
       <div className="flex justify-between items-center gap-2">
         <h2 className="font-bold flex items-center gap-2"><Sparkles className="w-4 h-4 text-sky-500" />{t.adviceTitle}</h2>
-        <button className="btn" onClick={() => load(true)} disabled={loading}>
-          <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />{t.refresh}
-        </button>
+        <div className="flex gap-2">
+          <button className="btn" onClick={() => load(true)} disabled={loading} title={t.engineLocal}>
+            <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />{t.refresh}
+          </button>
+          <button className="btn-primary" onClick={() => load(true, true)} disabled={loading}>
+            <Sparkles className="w-3.5 h-3.5" />{t.aiAnalyze}
+          </button>
+        </div>
       </div>
 
       {loading && !advice && <p className="text-sm muted animate-pulse">{t.analyzing}</p>}
@@ -158,7 +163,7 @@ export function AdvicePanel({ symbol, onAdvice, onShowDate }: Props) {
           <div className="text-[11px] muted border-t border-slate-200 dark:border-slate-800 pt-2 space-y-1">
             {advice.ai_error && <p className="text-amber-500">{t.aiError} {advice.ai_error}</p>}
             <p>{advice.engine === 'local' ? t.engineLocal : `${t.engineAI} (${advice.engine})`} · {advice.articles_analyzed} {t.articlesAnalyzed} · {new Date(advice.generated_at * 1000).toLocaleString(lang)}</p>
-            {advice.engine === 'local' && <p>{t.enableAi}</p>}
+            {advice.engine === 'local' && <p>{t.aiManualHelp}</p>}
             <p>{t.disclaimer}</p>
           </div>
         </div>

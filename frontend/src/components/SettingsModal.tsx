@@ -151,25 +151,14 @@ export function SettingsModal({ onClose, lang, setLang, dark, setDark, onSaved }
           <section className="space-y-2">
             <h3 className="font-bold">{t.autoTitle}</h3>
             <label className="flex items-center gap-2 text-sm cursor-pointer">
-              <input type="checkbox" className="accent-sky-600" checked={auto.enabled} onChange={(e) => run(api.setAuto(e.target.checked, auto.ai_hours, auto.ai_all))} />
+              <input type="checkbox" className="accent-sky-600" checked={auto.enabled} onChange={(e) => run(api.setAuto(e.target.checked))} />
               {t.autoEnabled}
             </label>
-            <p className="text-xs muted">{t.aiAutoScope}</p>
-            <label className="flex items-center gap-2 text-sm cursor-pointer">
-              <input type="checkbox" className="accent-sky-600" checked={auto.ai_all} onChange={(e) => run(api.setAuto(auto.enabled, auto.ai_hours, e.target.checked))} />
-              {t.aiAll}
-            </label>
-            <div className="flex items-center gap-2 text-sm">
-              <span>{t.aiHours}</span>
-              <input type="number" min={1} max={168} className="input !w-20 !py-1" defaultValue={auto.ai_hours}
-                onBlur={(e) => Number(e.target.value) !== auto.ai_hours && run(api.setAuto(auto.enabled, Number(e.target.value) || 12, auto.ai_all))} />
-            </div>
             <div className="text-xs muted">
-              {t.progress} : {auto.analysed}/{auto.total} {t.analysedLocal} · {auto.ai_analysed} {t.analysedAi} · {auto.keys_available}/{settings?.keys.length ?? 0} {t.keysReady}
+              {t.progress} : {auto.analysed}/{auto.total} {t.analysedLocal} · {auto.keys_available}/{settings?.keys.length ?? 0} {t.keysReady}
             </div>
             <div className="h-1.5 rounded-full bg-slate-200 dark:bg-slate-800 overflow-hidden flex">
-              <div className="bg-sky-600" style={{ width: `${(auto.ai_analysed / auto.total) * 100}%` }} />
-              <div className="bg-sky-600/40" style={{ width: `${((auto.analysed - auto.ai_analysed) / auto.total) * 100}%` }} />
+              <div className="bg-sky-600" style={{ width: `${(auto.analysed / auto.total) * 100}%` }} />
             </div>
             {auto.last_error && <p className="text-[11px] text-amber-500 truncate" title={auto.last_error}>⚠ {auto.last_error}</p>}
           </section>
