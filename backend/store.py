@@ -14,6 +14,9 @@ DB_PATH = os.path.join(DATA_DIR, "market_news.db")
 _seed = os.path.join(getattr(sys, "_MEIPASS", BASE_DIR), "market_news.db")
 if not os.path.exists(DB_PATH) and os.path.exists(_seed):
     shutil.copy(_seed, DB_PATH)
+    _fresh_install = True
+else:
+    _fresh_install = False
 
 _lock = threading.Lock()
 
@@ -70,6 +73,13 @@ def init():
             conn.execute("ALTER TABLE pea_movements ADD COLUMN fx REAL")
         if "ai_sentiment" not in cols:
             conn.execute("ALTER TABLE articles ADD COLUMN ai_sentiment TEXT")
+        if _fresh_install:  # seule l'archive d'articles est partagée : PEA, favoris, clés et réglages propres à chaque machine
+            for t in PERSONAL_TABLES:
+                conn.execute(f"DELETE FROM {t}")
+
+
+PERSONAL_TABLES = ("favorites", "settings", "advice_cache", "holdings", "advice_history", "price_alerts",
+                   "notified", "orders_log", "pea_movements")
 
 
 def get_setting(key: str, default: str = "") -> str:

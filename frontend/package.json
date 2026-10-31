@@ -1,7 +1,7 @@
 {
   "name": "stockpulse-frontend",
   "private": true,
-  "version": "2.2.1",
+  "version": "2.2.2",
   "main": "dist-electron/main.js",
   "scripts": {
     "dev": "vite",

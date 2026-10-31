@@ -47,3 +47,14 @@ def test_frontend_fallback_route():
     assert r.status_code == 200 and "<div id=\"root\">" in r.text
 
 
+
+
+def test_seed_db_has_no_personal_data():
+    import os, sqlite3
+    import store
+    seed = os.path.join(os.path.dirname(store.BASE_DIR), "market_news.db")
+    with sqlite3.connect(seed) as c:
+        for t in store.PERSONAL_TABLES:
+            if t != "settings":
+                assert c.execute(f"SELECT COUNT(*) FROM {t}").fetchone()[0] == 0, t
+        assert not c.execute("SELECT key FROM settings WHERE key LIKE '%key%' OR key LIKE 'secret%'").fetchall()
