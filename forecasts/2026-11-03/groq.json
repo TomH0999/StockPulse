@@ -1,0 +1,1406 @@
+{
+ "model": "openai/gpt-oss-120b",
+ "predictions": {
+  "ASML.AS": {
+   "r6": 5.0,
+   "r12": 10.0,
+   "r18": 12.0,
+   "r24": 15.0,
+   "confidence": "medium"
+  },
+  "NOVN.SW": {
+   "r6": 3.0,
+   "r12": 6.0,
+   "r18": 8.0,
+   "r24": 10.0,
+   "confidence": "high"
+  },
+  "SAP.DE": {
+   "r6": 2.0,
+   "r12": 4.0,
+   "r18": 5.0,
+   "r24": 6.0,
+   "confidence": "medium"
+  },
+  "AZN.L": {
+   "r6": 2.0,
+   "r12": 5.0,
+   "r18": 7.0,
+   "r24": 9.0,
+   "confidence": "medium"
+  },
+  "SHEL.L": {
+   "r6": 4.0,
+   "r12": 8.0,
+   "r18": 10.0,
+   "r24": 12.0,
+   "confidence": "medium"
+  },
+  "HSBA.L": {
+   "r6": -1.0,
+   "r12": 2.0,
+   "r18": 4.0,
+   "r24": 6.0,
+   "confidence": "low"
+  },
+  "UCG.MI": {
+   "r6": 1.0,
+   "r12": 3.0,
+   "r18": 5.0,
+   "r24": 7.0,
+   "confidence": "low"
+  },
+  "RR.L": {
+   "r6": -2.0,
+   "r12": 1.0,
+   "r18": 3.0,
+   "r24": 5.0,
+   "confidence": "low"
+  },
+  "TTE.PA": {
+   "r6": 5.0,
+   "r12": 9.0,
+   "r18": 12.0,
+   "r24": 14.0,
+   "confidence": "medium"
+  },
+  "BP.L": {
+   "r6": 4.0,
+   "r12": 8.0,
+   "r18": 10.0,
+   "r24": 12.0,
+   "confidence": "medium"
+  },
+  "NESN.SW": {
+   "r6": 5.0,
+   "r12": 8.0,
+   "r18": 10.0,
+   "r24": 12.0,
+   "confidence": "high"
+  },
+  "ISP.MI": {
+   "r6": 2.0,
+   "r12": 5.0,
+   "r18": 7.0,
+   "r24": 9.0,
+   "confidence": "medium"
+  },
+  "ENR.DE": {
+   "r6": 4.0,
+   "r12": 8.0,
+   "r18": 12.0,
+   "r24": 15.0,
+   "confidence": "low"
+  },
+  "SAN.MC": {
+   "r6": 3.0,
+   "r12": 6.0,
+   "r18": 9.0,
+   "r24": 12.0,
+   "confidence": "medium"
+  },
+  "SIE.DE": {
+   "r6": 4.0,
+   "r12": 7.0,
+   "r18": 10.0,
+   "r24": 13.0,
+   "confidence": "high"
+  },
+  "MC.PA": {
+   "r6": -5.0,
+   "r12": 2.0,
+   "r18": 8.0,
+   "r24": 12.0,
+   "confidence": "medium"
+  },
+  "SU.PA": {
+   "r6": 2.0,
+   "r12": 5.0,
+   "r18": 9.0,
+   "r24": 13.0,
+   "confidence": "medium"
+  },
+  "UBSG.SW": {
+   "r6": 6.0,
+   "r12": 10.0,
+   "r18": 14.0,
+   "r24": 18.0,
+   "confidence": "high"
+  },
+  "GLEN.L": {
+   "r6": 3.0,
+   "r12": 7.0,
+   "r18": 11.0,
+   "r24": 15.0,
+   "confidence": "medium"
+  },
+  "BARC.L": {
+   "r6": 1.0,
+   "r12": 4.0,
+   "r18": 7.0,
+   "r24": 10.0,
+   "confidence": "low"
+  },
+  "IFX.DE": {
+   "r6": 5.0,
+   "r12": 12.0,
+   "r18": 18.0,
+   "r24": 25.0,
+   "confidence": "low"
+  },
+  "BNP.PA": {
+   "r6": 4.0,
+   "r12": 10.0,
+   "r18": 15.0,
+   "r24": 20.0,
+   "confidence": "medium"
+  },
+  "SHELL.AS": {
+   "r6": 8.0,
+   "r12": 15.0,
+   "r18": 20.0,
+   "r24": 25.0,
+   "confidence": "high"
+  },
+  "ALV.DE": {
+   "r6": 6.0,
+   "r12": 12.0,
+   "r18": 18.0,
+   "r24": 24.0,
+   "confidence": "high"
+  },
+  "ENI.MI": {
+   "r6": 7.0,
+   "r12": 14.0,
+   "r18": 20.0,
+   "r24": 26.0,
+   "confidence": "medium"
+  },
+  "AAL.L": {
+   "r6": 4.0,
+   "r12": 9.0,
+   "r18": 14.0,
+   "r24": 19.0,
+   "confidence": "medium"
+  },
+  "AIR.PA": {
+   "r6": 2.0,
+   "r12": 5.0,
+   "r18": 9.0,
+   "r24": 13.0,
+   "confidence": "medium"
+  },
+  "RIO.L": {
+   "r6": 3.0,
+   "r12": 8.0,
+   "r18": 13.0,
+   "r24": 18.0,
+   "confidence": "low"
+  },
+  "RHM.DE": {
+   "r6": 2.0,
+   "r12": 5.0,
+   "r18": 9.0,
+   "r24": 13.0,
+   "confidence": "low"
+  },
+  "ABBN.SW": {
+   "r6": 3.0,
+   "r12": 7.0,
+   "r18": 12.0,
+   "r24": 17.0,
+   "confidence": "medium"
+  },
+  "ULVR.L": {
+   "r6": 5,
+   "r12": 8,
+   "r18": 10,
+   "r24": 12,
+   "confidence": "medium"
+  },
+  "ZURN.SW": {
+   "r6": 4,
+   "r12": 6,
+   "r18": 8,
+   "r24": 10,
+   "confidence": "high"
+  },
+  "SAF.PA": {
+   "r6": -2,
+   "r12": 0,
+   "r18": 5,
+   "r24": 8,
+   "confidence": "low"
+  },
+  "LLOY.L": {
+   "r6": 0,
+   "r12": 3,
+   "r18": 6,
+   "r24": 9,
+   "confidence": "low"
+  },
+  "NOVO-B.CO": {
+   "r6": -5,
+   "r12": -8,
+   "r18": -10,
+   "r24": -12,
+   "confidence": "low"
+  },
+  "DTE.DE": {
+   "r6": -2,
+   "r12": 1,
+   "r18": 4,
+   "r24": 6,
+   "confidence": "medium"
+  },
+  "BBVA.MC": {
+   "r6": 7,
+   "r12": 12,
+   "r18": 15,
+   "r24": 18,
+   "confidence": "medium"
+  },
+  "IBE.MC": {
+   "r6": 5,
+   "r12": 8,
+   "r18": 10,
+   "r24": 12,
+   "confidence": "high"
+  },
+  "ENEL.MI": {
+   "r6": 1,
+   "r12": 4,
+   "r18": 7,
+   "r24": 9,
+   "confidence": "medium"
+  },
+  "DBK.DE": {
+   "r6": 3,
+   "r12": 6,
+   "r18": 9,
+   "r24": 12,
+   "confidence": "low"
+  },
+  "BATS.L": {
+   "r6": 5.0,
+   "r12": 12.0,
+   "r18": 18.0,
+   "r24": 22.0,
+   "confidence": "medium"
+  },
+  "CFR.SW": {
+   "r6": 4.0,
+   "r12": 9.0,
+   "r18": 14.0,
+   "r24": 18.0,
+   "confidence": "medium"
+  },
+  "LSEG.L": {
+   "r6": -2.0,
+   "r12": 3.0,
+   "r18": 6.0,
+   "r24": 8.0,
+   "confidence": "medium"
+  },
+  "GLE.PA": {
+   "r6": -5.0,
+   "r12": 5.0,
+   "r18": 12.0,
+   "r24": 15.0,
+   "confidence": "low"
+  },
+  "SAN.PA": {
+   "r6": 3.0,
+   "r12": 2.0,
+   "r18": 4.0,
+   "r24": 5.0,
+   "confidence": "medium"
+  },
+  "MUV2.DE": {
+   "r6": 4.0,
+   "r12": 6.0,
+   "r18": 8.0,
+   "r24": 9.0,
+   "confidence": "high"
+  },
+  "NG.L": {
+   "r6": -1.0,
+   "r12": 5.0,
+   "r18": 9.0,
+   "r24": 12.0,
+   "confidence": "medium"
+  },
+  "NWG.L": {
+   "r6": 2.0,
+   "r12": 4.0,
+   "r18": 8.0,
+   "r24": 12.0,
+   "confidence": "low"
+  },
+  "NOKIA.HE": {
+   "r6": -10.0,
+   "r12": 5.0,
+   "r18": 12.0,
+   "r24": 18.0,
+   "confidence": "low"
+  },
+  "STAN.L": {
+   "r6": 8.0,
+   "r12": 15.0,
+   "r18": 22.0,
+   "r24": 28.0,
+   "confidence": "medium"
+  },
+  "CS.PA": {
+   "r6": 3.0,
+   "r12": 8.0,
+   "r18": 12.0,
+   "r24": 15.0,
+   "confidence": "medium"
+  },
+  "PRY.MI": {
+   "r6": 5.0,
+   "r12": 12.0,
+   "r18": 18.0,
+   "r24": 25.0,
+   "confidence": "low"
+  },
+  "RACE.MI": {
+   "r6": 10.0,
+   "r12": 12.0,
+   "r18": 14.0,
+   "r24": 16.0,
+   "confidence": "medium"
+  },
+  "RMS.PA": {
+   "r6": 8.0,
+   "r12": 15.0,
+   "r18": 22.0,
+   "r24": 30.0,
+   "confidence": "low"
+  },
+  "AI.PA": {
+   "r6": 4.0,
+   "r12": 7.0,
+   "r18": 10.0,
+   "r24": 12.0,
+   "confidence": "high"
+  },
+  "REL.L": {
+   "r6": 6.0,
+   "r12": 10.0,
+   "r18": 14.0,
+   "r24": 18.0,
+   "confidence": "medium"
+  },
+  "GSK.L": {
+   "r6": 3.0,
+   "r12": 6.0,
+   "r18": 9.0,
+   "r24": 12.0,
+   "confidence": "medium"
+  },
+  "OR.PA": {
+   "r6": 5.0,
+   "r12": 8.0,
+   "r18": 10.0,
+   "r24": 12.0,
+   "confidence": "high"
+  },
+  "ASM.AS": {
+   "r6": 7.0,
+   "r12": 14.0,
+   "r18": 21.0,
+   "r24": 28.0,
+   "confidence": "low"
+  },
+  "ABI.BR": {
+   "r6": 5.0,
+   "r12": 9.0,
+   "r18": 13.0,
+   "r24": 17.0,
+   "confidence": "medium"
+  },
+  "EL.PA": {
+   "r6": 2.0,
+   "r12": 5.0,
+   "r18": 7.0,
+   "r24": 9.0,
+   "confidence": "medium"
+  },
+  "ADYEN.AS": {
+   "r6": -5.0,
+   "r12": 0.0,
+   "r18": 4.0,
+   "r24": 8.0,
+   "confidence": "low"
+  },
+  "BA.L": {
+   "r6": 3.0,
+   "r12": 6.0,
+   "r18": 8.0,
+   "r24": 10.0,
+   "confidence": "medium"
+  },
+  "SREN.SW": {
+   "r6": 4.0,
+   "r12": 6.0,
+   "r18": 7.0,
+   "r24": 8.0,
+   "confidence": "high"
+  },
+  "BMPS.MI": {
+   "r6": 5.0,
+   "r12": 10.0,
+   "r18": 12.0,
+   "r24": 14.0,
+   "confidence": "low"
+  },
+  "HLN.L": {
+   "r6": -3.0,
+   "r12": -1.0,
+   "r18": 2.0,
+   "r24": 4.0,
+   "confidence": "medium"
+  },
+  "EQNR.OL": {
+   "r6": 5.0,
+   "r12": 8.0,
+   "r18": 10.0,
+   "r24": 12.0,
+   "confidence": "medium"
+  },
+  "STMPA.PA": {
+   "r6": -2.0,
+   "r12": 3.0,
+   "r18": 6.0,
+   "r24": 9.0,
+   "confidence": "low"
+  },
+  "PRX.AS": {
+   "r6": -4.0,
+   "r12": 2.0,
+   "r18": 6.0,
+   "r24": 10.0,
+   "confidence": "low"
+  },
+  "MBG.DE": {
+   "r6": -5.0,
+   "r12": -2.0,
+   "r18": 1.0,
+   "r24": 4.0,
+   "confidence": "medium"
+  },
+  "ENGI.PA": {
+   "r6": 2,
+   "r12": 5,
+   "r18": 8,
+   "r24": 10,
+   "confidence": "medium"
+  },
+  "BAYN.DE": {
+   "r6": 8,
+   "r12": 15,
+   "r18": 20,
+   "r24": 25,
+   "confidence": "medium"
+  },
+  "DG.PA": {
+   "r6": -5,
+   "r12": 0,
+   "r18": 3,
+   "r24": 5,
+   "confidence": "low"
+  },
+  "VOLV-B.ST": {
+   "r6": 3,
+   "r12": 7,
+   "r18": 10,
+   "r24": 13,
+   "confidence": "medium"
+  },
+  "INVE-B.ST": {
+   "r6": 4,
+   "r12": 8,
+   "r18": 12,
+   "r24": 15,
+   "confidence": "high"
+  },
+  "DB1.DE": {
+   "r6": 5,
+   "r12": 10,
+   "r18": 14,
+   "r24": 18,
+   "confidence": "medium"
+  },
+  "PRU.L": {
+   "r6": -2,
+   "r12": 3,
+   "r18": 6,
+   "r24": 9,
+   "confidence": "low"
+  },
+  "LDO.MI": {
+   "r6": 2,
+   "r12": 6,
+   "r18": 12,
+   "r24": 18,
+   "confidence": "low"
+  },
+  "ITX.MC": {
+   "r6": 4,
+   "r12": 9,
+   "r18": 13,
+   "r24": 17,
+   "confidence": "medium"
+  },
+  "BMW.DE": {
+   "r6": -8,
+   "r12": -4,
+   "r18": 0,
+   "r24": 4,
+   "confidence": "low"
+  },
+  "BESI.AS": {
+   "r6": -5,
+   "r12": 0,
+   "r18": 5,
+   "r24": 10,
+   "confidence": "low"
+  },
+  "TSCO.L": {
+   "r6": 4,
+   "r12": 6,
+   "r18": 8,
+   "r24": 10,
+   "confidence": "high"
+  },
+  "RKT.L": {
+   "r6": 2,
+   "r12": 5,
+   "r18": 7,
+   "r24": 9,
+   "confidence": "medium"
+  },
+  "BAS.DE": {
+   "r6": 3,
+   "r12": 5,
+   "r18": 6,
+   "r24": 7,
+   "confidence": "high"
+  },
+  "MT.AS": {
+   "r6": 1,
+   "r12": 3,
+   "r18": 4,
+   "r24": 5,
+   "confidence": "medium"
+  },
+  "REP.MC": {
+   "r6": 6,
+   "r12": 10,
+   "r18": 12,
+   "r24": 14,
+   "confidence": "medium"
+  },
+  "ACA.PA": {
+   "r6": 2,
+   "r12": 4,
+   "r18": 6,
+   "r24": 8,
+   "confidence": "medium"
+  },
+  "WKL.AS": {
+   "r6": 3,
+   "r12": 5,
+   "r18": 6,
+   "r24": 7,
+   "confidence": "medium"
+  },
+  "G.MI": {
+   "r6": 4,
+   "r12": 6,
+   "r18": 8,
+   "r24": 10,
+   "confidence": "high"
+  },
+  "ADS.DE": {
+   "r6": 2,
+   "r12": 4,
+   "r18": 5,
+   "r24": 6,
+   "confidence": "medium"
+  },
+  "VOD.L": {
+   "r6": 2.0,
+   "r12": 5.0,
+   "r18": 7.0,
+   "r24": 9.0,
+   "confidence": "medium"
+  },
+  "LONN.SW": {
+   "r6": 3.0,
+   "r12": 4.0,
+   "r18": 5.0,
+   "r24": 5.0,
+   "confidence": "high"
+  },
+  "EXPN.L": {
+   "r6": 5.0,
+   "r12": 8.0,
+   "r18": 10.0,
+   "r24": 12.0,
+   "confidence": "medium"
+  },
+  "DHL.DE": {
+   "r6": 6.0,
+   "r12": 10.0,
+   "r18": 12.0,
+   "r24": 14.0,
+   "confidence": "medium"
+  },
+  "CBK.DE": {
+   "r6": 4.0,
+   "r12": 8.0,
+   "r18": 12.0,
+   "r24": 15.0,
+   "confidence": "low"
+  },
+  "PGHN.SW": {
+   "r6": 2.0,
+   "r12": 4.0,
+   "r18": 6.0,
+   "r24": 8.0,
+   "confidence": "low"
+  },
+  "BN.PA": {
+   "r6": 3.0,
+   "r12": 6.0,
+   "r18": 8.0,
+   "r24": 10.0,
+   "confidence": "medium"
+  },
+  "DGE.L": {
+   "r6": 4.0,
+   "r12": 6.0,
+   "r18": 8.0,
+   "r24": 10.0,
+   "confidence": "medium"
+  },
+  "HOLN.SW": {
+   "r6": 2.0,
+   "r12": 5.0,
+   "r18": 7.0,
+   "r24": 9.0,
+   "confidence": "medium"
+  },
+  "AZN.ST": {
+   "r6": 5.0,
+   "r12": 9.0,
+   "r18": 12.0,
+   "r24": 14.0,
+   "confidence": "high"
+  },
+  "MU": {
+   "r6": 12.0,
+   "r12": 25.0,
+   "r18": 35.0,
+   "r24": 45.0,
+   "confidence": "medium"
+  },
+  "NVDA": {
+   "r6": 8.0,
+   "r12": 15.0,
+   "r18": 20.0,
+   "r24": 25.0,
+   "confidence": "high"
+  },
+  "SNDK": {
+   "r6": -5.0,
+   "r12": 5.0,
+   "r18": 10.0,
+   "r24": 15.0,
+   "confidence": "low"
+  },
+  "AAPL": {
+   "r6": 10.0,
+   "r12": 18.0,
+   "r18": 22.0,
+   "r24": 26.0,
+   "confidence": "high"
+  },
+  "TSLA": {
+   "r6": 5.0,
+   "r12": 12.0,
+   "r18": 18.0,
+   "r24": 24.0,
+   "confidence": "medium"
+  },
+  "META": {
+   "r6": 2.0,
+   "r12": 8.0,
+   "r18": 14.0,
+   "r24": 20.0,
+   "confidence": "medium"
+  },
+  "MSFT": {
+   "r6": 9.0,
+   "r12": 16.0,
+   "r18": 22.0,
+   "r24": 28.0,
+   "confidence": "high"
+  },
+  "AMD": {
+   "r6": 12.0,
+   "r12": 20.0,
+   "r18": 28.0,
+   "r24": 35.0,
+   "confidence": "medium"
+  },
+  "INTC": {
+   "r6": -8.0,
+   "r12": 2.0,
+   "r18": 8.0,
+   "r24": 14.0,
+   "confidence": "low"
+  },
+  "AMZN": {
+   "r6": 4.0,
+   "r12": 12.0,
+   "r18": 18.0,
+   "r24": 24.0,
+   "confidence": "medium"
+  },
+  "GOOGL": {
+   "r6": 5.0,
+   "r12": 12.0,
+   "r18": 18.0,
+   "r24": 22.0,
+   "confidence": "medium"
+  },
+  "AVGO": {
+   "r6": 3.0,
+   "r12": 9.0,
+   "r18": 14.0,
+   "r24": 18.0,
+   "confidence": "medium"
+  },
+  "GOOG": {
+   "r6": 5.0,
+   "r12": 12.0,
+   "r18": 18.0,
+   "r24": 22.0,
+   "confidence": "medium"
+  },
+  "MRVL": {
+   "r6": 10.0,
+   "r12": 25.0,
+   "r18": 35.0,
+   "r24": 45.0,
+   "confidence": "low"
+  },
+  "PLTR": {
+   "r6": 15.0,
+   "r12": 30.0,
+   "r18": 45.0,
+   "r24": 60.0,
+   "confidence": "low"
+  },
+  "000660.KS": {
+   "r6": 12.0,
+   "r12": 28.0,
+   "r18": 40.0,
+   "r24": 55.0,
+   "confidence": "low"
+  },
+  "TSM": {
+   "r6": 4.0,
+   "r12": 10.0,
+   "r18": 15.0,
+   "r24": 20.0,
+   "confidence": "high"
+  },
+  "ORCL": {
+   "r6": 2.0,
+   "r12": 5.0,
+   "r18": 8.0,
+   "r24": 10.0,
+   "confidence": "medium"
+  },
+  "005930.KS": {
+   "r6": 3.0,
+   "r12": 9.0,
+   "r18": 14.0,
+   "r24": 18.0,
+   "confidence": "high"
+  },
+  "STX": {
+   "r6": 5.0,
+   "r12": 15.0,
+   "r18": 25.0,
+   "r24": 35.0,
+   "confidence": "low"
+  },
+  "DELL": {
+   "r6": 30.0,
+   "r12": 55.0,
+   "r18": 70.0,
+   "r24": 80.0,
+   "confidence": "medium"
+  },
+  "WDC": {
+   "r6": -10.0,
+   "r12": 5.0,
+   "r18": 15.0,
+   "r24": 20.0,
+   "confidence": "low"
+  },
+  "MRNA": {
+   "r6": 50.0,
+   "r12": 80.0,
+   "r18": 100.0,
+   "r24": 120.0,
+   "confidence": "low"
+  },
+  "AMAT": {
+   "r6": 5.0,
+   "r12": 20.0,
+   "r18": 30.0,
+   "r24": 35.0,
+   "confidence": "medium"
+  },
+  "LLY": {
+   "r6": 15.0,
+   "r12": 25.0,
+   "r18": 30.0,
+   "r24": 35.0,
+   "confidence": "high"
+  },
+  "LRCX": {
+   "r6": -5.0,
+   "r12": 10.0,
+   "r18": 20.0,
+   "r24": 25.0,
+   "confidence": "medium"
+  },
+  "NFLX": {
+   "r6": -10.0,
+   "r12": 5.0,
+   "r18": 15.0,
+   "r24": 20.0,
+   "confidence": "low"
+  },
+  "WMT": {
+   "r6": 2.0,
+   "r12": 8.0,
+   "r18": 12.0,
+   "r24": 15.0,
+   "confidence": "high"
+  },
+  "CRM": {
+   "r6": 10.0,
+   "r12": 12.0,
+   "r18": 15.0,
+   "r24": 18.0,
+   "confidence": "medium"
+  },
+  "V": {
+   "r6": 12.0,
+   "r12": 15.0,
+   "r18": 18.0,
+   "r24": 20.0,
+   "confidence": "high"
+  },
+  "BRK-B": {
+   "r6": 5,
+   "r12": 8,
+   "r18": 10,
+   "r24": 12,
+   "confidence": "high"
+  },
+  "ASML": {
+   "r6": 12,
+   "r12": 20,
+   "r18": 25,
+   "r24": 30,
+   "confidence": "medium"
+  },
+  "CRWD": {
+   "r6": 8,
+   "r12": 12,
+   "r18": 15,
+   "r24": 18,
+   "confidence": "medium"
+  },
+  "XOM": {
+   "r6": 6,
+   "r12": 10,
+   "r18": 12,
+   "r24": 14,
+   "confidence": "medium"
+  },
+  "JPM": {
+   "r6": 4,
+   "r12": 7,
+   "r18": 9,
+   "r24": 11,
+   "confidence": "high"
+  },
+  "GEV": {
+   "r6": -5,
+   "r12": 2,
+   "r18": 5,
+   "r24": 8,
+   "confidence": "low"
+  },
+  "PANW": {
+   "r6": 10,
+   "r12": 15,
+   "r18": 20,
+   "r24": 25,
+   "confidence": "medium"
+  },
+  "COST": {
+   "r6": 3,
+   "r12": 6,
+   "r18": 8,
+   "r24": 10,
+   "confidence": "high"
+  },
+  "CAT": {
+   "r6": 2,
+   "r12": 5,
+   "r18": 8,
+   "r24": 12,
+   "confidence": "low"
+  },
+  "BAC": {
+   "r6": 1,
+   "r12": 3,
+   "r18": 5,
+   "r24": 7,
+   "confidence": "medium"
+  },
+  "GS": {
+   "r6": 2.0,
+   "r12": 5.0,
+   "r18": 7.0,
+   "r24": 9.0,
+   "confidence": "medium"
+  },
+  "NOW": {
+   "r6": 10.0,
+   "r12": 20.0,
+   "r18": 25.0,
+   "r24": 30.0,
+   "confidence": "low"
+  },
+  "QCOM": {
+   "r6": 3.0,
+   "r12": 6.0,
+   "r18": 9.0,
+   "r24": 12.0,
+   "confidence": "medium"
+  },
+  "UNH": {
+   "r6": 4.0,
+   "r12": 8.0,
+   "r18": 12.0,
+   "r24": 15.0,
+   "confidence": "high"
+  },
+  "CSCO": {
+   "r6": 5.0,
+   "r12": 10.0,
+   "r18": 15.0,
+   "r24": 20.0,
+   "confidence": "medium"
+  },
+  "KLAC": {
+   "r6": 5.0,
+   "r12": 12.0,
+   "r18": 18.0,
+   "r24": 25.0,
+   "confidence": "low"
+  },
+  "MA": {
+   "r6": 3.0,
+   "r12": 6.0,
+   "r18": 9.0,
+   "r24": 12.0,
+   "confidence": "high"
+  },
+  "JNJ": {
+   "r6": 2.0,
+   "r12": 4.0,
+   "r18": 6.0,
+   "r24": 8.0,
+   "confidence": "high"
+  },
+  "9984.T": {
+   "r6": -5.0,
+   "r12": 5.0,
+   "r18": 12.0,
+   "r24": 20.0,
+   "confidence": "low"
+  },
+  "CVX": {
+   "r6": 4.0,
+   "r12": 8.0,
+   "r18": 12.0,
+   "r24": 16.0,
+   "confidence": "medium"
+  },
+  "TXN": {
+   "r6": 5.0,
+   "r12": 12.0,
+   "r18": 18.0,
+   "r24": 25.0,
+   "confidence": "medium"
+  },
+  "2330.TW": {
+   "r6": 6.0,
+   "r12": 14.0,
+   "r18": 22.0,
+   "r24": 30.0,
+   "confidence": "medium"
+  },
+  "KO": {
+   "r6": 4.0,
+   "r12": 8.0,
+   "r18": 12.0,
+   "r24": 16.0,
+   "confidence": "high"
+  },
+  "MRK": {
+   "r6": 8.0,
+   "r12": 15.0,
+   "r18": 22.0,
+   "r24": 30.0,
+   "confidence": "medium"
+  },
+  "HD": {
+   "r6": 5.0,
+   "r12": 10.0,
+   "r18": 15.0,
+   "r24": 20.0,
+   "confidence": "medium"
+  },
+  "SNOW": {
+   "r6": 12.0,
+   "r12": 20.0,
+   "r18": 28.0,
+   "r24": 35.0,
+   "confidence": "low"
+  },
+  "GE": {
+   "r6": 6.0,
+   "r12": 12.0,
+   "r18": 18.0,
+   "r24": 24.0,
+   "confidence": "medium"
+  },
+  "TMO": {
+   "r6": 10.0,
+   "r12": 18.0,
+   "r18": 26.0,
+   "r24": 34.0,
+   "confidence": "medium"
+  },
+  "GLW": {
+   "r6": -5.0,
+   "r12": 5.0,
+   "r18": 15.0,
+   "r24": 25.0,
+   "confidence": "low"
+  },
+  "PG": {
+   "r6": 4.0,
+   "r12": 8.0,
+   "r18": 12.0,
+   "r24": 16.0,
+   "confidence": "high"
+  },
+  "MCD": {
+   "r6": -2,
+   "r12": 0,
+   "r18": 3,
+   "r24": 5,
+   "confidence": "medium"
+  },
+  "BA": {
+   "r6": -5,
+   "r12": 2,
+   "r18": 5,
+   "r24": 8,
+   "confidence": "low"
+  },
+  "ADI": {
+   "r6": 6,
+   "r12": 12,
+   "r18": 18,
+   "r24": 24,
+   "confidence": "medium"
+  },
+  "ABBV": {
+   "r6": 10,
+   "r12": 15,
+   "r18": 20,
+   "r24": 25,
+   "confidence": "high"
+  },
+  "IBM": {
+   "r6": 2,
+   "r12": 5,
+   "r18": 8,
+   "r24": 12,
+   "confidence": "low"
+  },
+  "SHOP": {
+   "r6": 8,
+   "r12": 15,
+   "r18": 22,
+   "r24": 30,
+   "confidence": "medium"
+  },
+  "UBER": {
+   "r6": -3,
+   "r12": 2,
+   "r18": 6,
+   "r24": 10,
+   "confidence": "low"
+  },
+  "VRT": {
+   "r6": -5,
+   "r12": 5,
+   "r18": 12,
+   "r24": 20,
+   "confidence": "low"
+  },
+  "WFC": {
+   "r6": 3,
+   "r12": 6,
+   "r18": 9,
+   "r24": 12,
+   "confidence": "medium"
+  },
+  "C": {
+   "r6": 2,
+   "r12": 8,
+   "r18": 14,
+   "r24": 20,
+   "confidence": "medium"
+  },
+  "BKNG": {
+   "r6": -5,
+   "r12": 2,
+   "r18": 8,
+   "r24": 12,
+   "confidence": "medium"
+  },
+  "INTU": {
+   "r6": -10,
+   "r12": -15,
+   "r18": -20,
+   "r24": -25,
+   "confidence": "low"
+  },
+  "ADBE": {
+   "r6": 2,
+   "r12": 5,
+   "r18": 10,
+   "r24": 15,
+   "confidence": "medium"
+  },
+  "0700.HK": {
+   "r6": -5,
+   "r12": 5,
+   "r18": 12,
+   "r24": 18,
+   "confidence": "medium"
+  },
+  "PEP": {
+   "r6": -2,
+   "r12": 0,
+   "r18": 3,
+   "r24": 5,
+   "confidence": "high"
+  },
+  "VLO": {
+   "r6": 20,
+   "r12": 35,
+   "r18": 45,
+   "r24": 55,
+   "confidence": "medium"
+  },
+  "AMGN": {
+   "r6": 30,
+   "r12": 35,
+   "r18": 40,
+   "r24": 45,
+   "confidence": "high"
+  },
+  "ARM": {
+   "r6": -2,
+   "r12": 5,
+   "r18": 12,
+   "r24": 20,
+   "confidence": "low"
+  },
+  "ACN": {
+   "r6": 10,
+   "r12": 15,
+   "r18": 20,
+   "r24": 25,
+   "confidence": "medium"
+  },
+  "8035.T": {
+   "r6": 8,
+   "r12": 15,
+   "r18": 22,
+   "r24": 30,
+   "confidence": "medium"
+  },
+  "TJX": {
+   "r6": 2.5,
+   "r12": 5.0,
+   "r18": 7.5,
+   "r24": 9.0,
+   "confidence": "medium"
+  },
+  "ANET": {
+   "r6": 4.0,
+   "r12": 9.0,
+   "r18": 13.0,
+   "r24": 16.0,
+   "confidence": "low"
+  },
+  "VZ": {
+   "r6": 1.5,
+   "r12": 3.5,
+   "r18": 5.0,
+   "r24": 6.5,
+   "confidence": "medium"
+  },
+  "NET": {
+   "r6": 6.0,
+   "r12": 12.0,
+   "r18": 18.0,
+   "r24": 24.0,
+   "confidence": "low"
+  },
+  "BABA": {
+   "r6": -2.0,
+   "r12": 3.0,
+   "r18": 6.0,
+   "r24": 9.0,
+   "confidence": "low"
+  },
+  "APH": {
+   "r6": 5.0,
+   "r12": 10.0,
+   "r18": 14.0,
+   "r24": 18.0,
+   "confidence": "medium"
+  },
+  "LIN": {
+   "r6": 3.0,
+   "r12": 6.0,
+   "r18": 9.0,
+   "r24": 12.0,
+   "confidence": "high"
+  },
+  "MS": {
+   "r6": 2.0,
+   "r12": 5.0,
+   "r18": 8.0,
+   "r24": 11.0,
+   "confidence": "medium"
+  },
+  "MPC": {
+   "r6": 8.0,
+   "r12": 15.0,
+   "r18": 22.0,
+   "r24": 30.0,
+   "confidence": "medium"
+  },
+  "NEE": {
+   "r6": 2.5,
+   "r12": 5.5,
+   "r18": 8.5,
+   "r24": 11.5,
+   "confidence": "high"
+  },
+  "T": {
+   "r6": -5,
+   "r12": 0,
+   "r18": 3,
+   "r24": 5,
+   "confidence": "medium"
+  },
+  "PFE": {
+   "r6": 8,
+   "r12": 12,
+   "r18": 15,
+   "r24": 18,
+   "confidence": "high"
+  },
+  "MDT": {
+   "r6": 10,
+   "r12": 15,
+   "r18": 18,
+   "r24": 20,
+   "confidence": "medium"
+  },
+  "AXP": {
+   "r6": 4,
+   "r12": 8,
+   "r18": 12,
+   "r24": 15,
+   "confidence": "medium"
+  },
+  "ABT": {
+   "r6": 6,
+   "r12": 10,
+   "r18": 13,
+   "r24": 16,
+   "confidence": "medium"
+  },
+  "ISRG": {
+   "r6": -2,
+   "r12": 5,
+   "r18": 10,
+   "r24": 12,
+   "confidence": "low"
+  },
+  "8306.T": {
+   "r6": 12,
+   "r12": 20,
+   "r18": 25,
+   "r24": 30,
+   "confidence": "medium"
+  },
+  "SNPS": {
+   "r6": -3,
+   "r12": 2,
+   "r18": 5,
+   "r24": 8,
+   "confidence": "low"
+  },
+  "BSX": {
+   "r6": -5,
+   "r12": 0,
+   "r18": 5,
+   "r24": 10,
+   "confidence": "low"
+  },
+  "PM": {
+   "r6": 8,
+   "r12": 12,
+   "r18": 15,
+   "r24": 18,
+   "confidence": "high"
+  }
+ },
+ "date": "2026-11-03"
+}
