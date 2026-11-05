@@ -16,6 +16,4 @@ export const VERDICT_STYLE: Record<string, string> = {
 export const VERDICT_LABEL: Record<string, Record<string, string>> = {
   fr: { STRONG_BUY: 'Achat fort', BUY: 'Achat', HOLD: 'Conserver', REDUCE: 'Alléger', SELL: 'Vendre' },
   en: { STRONG_BUY: 'Strong buy', BUY: 'Buy', HOLD: 'Hold', REDUCE: 'Reduce', SELL: 'Sell' },
-  es: { STRONG_BUY: 'Compra fuerte', BUY: 'Comprar', HOLD: 'Mantener', REDUCE: 'Reducir', SELL: 'Vender' },
-  zh: { STRONG_BUY: '强烈买入', BUY: '买入', HOLD: '持有', REDUCE: '减持', SELL: '卖出' },
 };

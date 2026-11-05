@@ -1,56 +1,54 @@
 import { useMemo, useState } from 'react';
 import { Trophy } from 'lucide-react';
-import { pct, ScreenerRow } from '../services/api';
+import { ScreenerRow } from '../services/api';
 import { useI18n } from '../context';
 import { useScreener } from '../hooks/useScreener';
 import { Sparkline } from './Sparkline';
 import { VerdictBadge } from './VerdictBadge';
 import { applyFilters, Filters, MarketFilters } from './MarketFilters';
 
-const PERIODS = ['1d', '1w', '1m', '3m', 'ytd', '1y'] as const;
-type Period = typeof PERIODS[number];
-const CONF = { low: 0, medium: 1, high: 2 };
-
+/** Classements d'investisseur long terme (qualité, valorisation, solidité, dividende) : pas de « plus fortes hausses du jour ». */
 interface Board {
   key: string;
-  value: (r: ScreenerRow, p: Period) => number | null | undefined;
+  value: (r: ScreenerRow) => number | null | undefined;
   desc: boolean;
-  show: (r: ScreenerRow, p: Period) => string;
+  show: (r: ScreenerRow) => string;
   filter?: (r: ScreenerRow) => boolean;
 }
 
-const chg = (r: ScreenerRow, p: Period) => r[`chg_${p}` as keyof ScreenerRow] as number | null | undefined;
-const score = (r: ScreenerRow) => (r.advice ? `${r.advice.score > 0 ? '+' : ''}${r.advice.score}` : '–');
+const num = (v: number | null | undefined, u = '', d = 1) => (v === null || v === undefined ? '–' : `${v.toFixed(d)}${u}`);
+const peRel = (r: ScreenerRow) => (r.advice?.pe && r.advice.pe_history_median ? r.advice.pe / r.advice.pe_history_median : null);
 
 const BOARDS: Board[] = [
-  { key: 'b_gainers', value: chg, desc: true, show: (r, p) => pct(chg(r, p)) },
-  { key: 'b_losers', value: chg, desc: false, show: (r, p) => pct(chg(r, p)) },
-  { key: 'b_score', value: (r) => r.advice?.score, desc: true, show: score },
-  { key: 'b_confident', value: (r) => r.advice && CONF[r.advice.confidence] * 1000 + r.advice.score, desc: true, show: score,
-    filter: (r) => !!r.advice && r.advice.score > 0 },
-  { key: 'b_dip', value: (r) => r.from_high, desc: false, show: (r) => pct(r.from_high), filter: (r) => (r.advice?.score ?? 0) >= 15 },
+  { key: 'b_quality', value: (r) => r.advice?.quality, desc: true, show: (r) => `${num(r.advice?.quality, '', 0)}/25` },
+  { key: 'b_fcf', value: (r) => r.advice?.fcf_yield, desc: true, show: (r) => num(r.advice?.fcf_yield, ' %'),
+    filter: (r) => (r.advice?.fcf_yield ?? 0) < 40 },
+  { key: 'b_cheap_hist', value: peRel, desc: false, show: (r) => `${num(r.advice?.pe, '', 0)} / ${num(r.advice?.pe_history_median, '', 0)}`,
+    filter: (r) => (r.advice?.quality ?? -99) > 0 },
+  { key: 'b_roic', value: (r) => r.advice?.roic_avg, desc: true, show: (r) => num(r.advice?.roic_avg, ' %'), filter: (r) => (r.advice?.roic_avg ?? 0) < 200 },
+  { key: 'b_div', value: (r) => r.advice?.div_streak, desc: true, show: (r) => `${r.advice?.div_streak ?? '–'} ans` },
+  { key: 'b_solid', value: (r) => r.advice?.net_debt_ebitda, desc: false, show: (r) => num(r.advice?.net_debt_ebitda, '', 2) },
+  { key: 'b_reliable', value: (r) => r.advice?.edge_1y, desc: true, show: (r) => `+${num(r.advice?.edge_1y, ' pts', 0)}`,
+    filter: (r) => !!r.advice?.reliable },
+  { key: 'b_score', value: (r) => r.advice?.score, desc: true, show: (r) => (r.advice ? `${r.advice.score > 0 ? '+' : ''}${r.advice.score}` : '–'),
+    filter: (r) => (r.advice?.coverage ?? 0) >= 0.75 },
   { key: 'b_lowvol', value: (r) => r.volatility, desc: false, show: (r) => (r.volatility ? `${r.volatility}%` : '–') },
-  { key: 'b_sell', value: (r) => r.advice?.score, desc: false, show: score, filter: (r) => !!r.advice && r.advice.score < 0 },
-  // prix comparés en euros (devises différentes)
-  { key: 'b_cheapest', value: (r) => r.price_eur, desc: false, show: (r) => `${r.price_eur?.toFixed(2)} €` },
-  { key: 'b_dearest', value: (r) => r.price_eur, desc: true, show: (r) => `${r.price_eur?.toFixed(2)} €` },
 ];
 
 export function LeaderboardView({ onOpen }: { onOpen: (symbol: string) => void }) {
   const { t, lang } = useI18n();
   const { rows, updated, loading } = useScreener();
-  const [period, setPeriod] = useState<Period>('1d');
   const [filters, setFilters] = useState<Filters>({ pea: false, country: '' });
 
   const boards = useMemo(() => {
     const base = applyFilters(rows, filters).filter((r) => r.price && !r.status);
     return BOARDS.map((b) => {
-      const list = base.filter((r) => (!b.filter || b.filter(r)) && b.value(r, period) !== null && b.value(r, period) !== undefined)
-        .sort((x, y) => ((b.value(x, period) as number) - (b.value(y, period) as number)) * (b.desc ? -1 : 1))
+      const list = base.filter((r) => (!b.filter || b.filter(r)) && b.value(r) !== null && b.value(r) !== undefined)
+        .sort((x, y) => ((b.value(x) as number) - (b.value(y) as number)) * (b.desc ? -1 : 1))
         .slice(0, 10);
       return { b, list };
     });
-  }, [rows, filters, period]);
+  }, [rows, filters]);
 
   return (
     <div className="space-y-5">
@@ -61,14 +59,6 @@ export function LeaderboardView({ onOpen }: { onOpen: (symbol: string) => void }
           {updated > 0 && <p className="text-xs muted mt-1">{t.updatedAt} : {new Date(updated * 1000).toLocaleTimeString(lang)}</p>}
         </div>
         <div className="flex flex-wrap items-center gap-3">
-          <div className="flex gap-1 p-1 rounded-lg border border-slate-200 dark:border-slate-800">
-            {PERIODS.map((p) => (
-              <button key={p} onClick={() => setPeriod(p)}
-                className={`px-2.5 py-1 text-xs font-semibold rounded-md cursor-pointer ${period === p ? 'bg-sky-600 text-white' : 'muted hover:text-sky-500'}`}>
-                {t[`p_${p}`]}
-              </button>
-            ))}
-          </div>
           <MarketFilters rows={rows} value={filters} onChange={setFilters} />
         </div>
       </div>
@@ -91,8 +81,8 @@ export function LeaderboardView({ onOpen }: { onOpen: (symbol: string) => void }
                         </span>
                         <Sparkline data={r.spark?.slice(-30)} width={60} height={22} />
                         <VerdictBadge advice={r.advice} />
-                        <span className={`w-20 text-right text-sm font-semibold ${b.key.startsWith('b_ch') || b.key === 'b_dearest' || b.key === 'b_lowvol' ? '' : (b.value(r, period) ?? 0) >= 0 ? 'up' : 'down'}`}>
-                          {b.show(r, period)}
+                        <span className="w-24 text-right text-sm font-semibold">
+                          {b.show(r)}
                         </span>
                       </button>
                     </li>

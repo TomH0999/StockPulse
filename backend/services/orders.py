@@ -1,18 +1,24 @@
-"""Générateur d'ordres : prépare l'ordre à saisir chez le courtier (achat, renforcement, allègement, vente),
-puis met à jour Mon PEA une fois l'ordre passé."""
+"""Générateur d'ordres : prépare l'ordre à cours limité à saisir chez le courtier (achat, renforcement, allègement,
+vente) dans le compte choisi, puis met à jour le journal du compte une fois l'ordre passé."""
 import math
 from datetime import date
 
 import catalog
 import store
-from services import advisor, objectives, portfolio, screener, yahoo
+from services import accounts, advisor, etf_exposure, objectives, portfolio, screener, yahoo
 from services import fx as fxmod
 
 MAX_LINE = 20  # % maximum d'une ligne dans le PEA
 
 
 def fees_settings() -> dict:
-    return {"pct": float(store.get_setting("fee_pct", "0.5")), "min": float(store.get_setting("fee_min", "1.99"))}
+    """Frais de courtage (à vérifier chez son courtier ; plafond légal du PEA : 0,5 % par ordre en ligne)."""
+    return {"pct": float(store.get_setting("fee_pct", "0.5")), "min": float(store.get_setting("fee_min", "1.99")),
+            "stops": store.get_setting("order_stops", "0") == "1"}
+
+
+def set_stops(enabled: bool):
+    store.set_setting("order_stops", "1" if enabled else "0")
 
 
 def set_fees(pct: float, minimum: float):
@@ -41,8 +47,16 @@ def costs(symbol: str, side: str, gross_eur: float, currency: str = "EUR") -> di
     return {"broker": broker, "ttf": ttf, "fx": fx_fee, "total": round(broker + ttf + fx_fee, 2)}
 
 
+# Pas de cotation MiFID II (règlement délégué 2017/588), classe de liquidité la plus faible : (prix plancher, pas).
+# Les classes plus liquides ont des pas plus fins de la suite 1-2-5 ; un multiple du pas « 1 » ou « 2 » de cette classe,
+# ou du double d'un pas « 5 », est donc accepté quelle que soit la liquidité réelle du titre.
+TICKS = [(0, 0.0005), (0.1, 0.001), (0.2, 0.002), (0.5, 0.005), (1, 0.01), (2, 0.02), (5, 0.05), (10, 0.1), (20, 0.2),
+         (50, 0.5), (100, 1), (200, 2), (500, 5), (1000, 10), (2000, 20), (5000, 50), (10000, 100)]
+
+
 def _tick(price: float) -> float:
-    return 0.0001 if price < 1 else 0.001 if price < 10 else 0.01 if price < 100 else 0.05
+    t = next(tk for lo, tk in reversed(TICKS) if price >= lo)
+    return t * 2 if str(t).rstrip("0").endswith("5") else t
 
 
 def _round(price: float, up: bool) -> float:
@@ -61,6 +75,7 @@ def plan(symbol: str, side: str, amount: float | None = None, quantity: float | 
         raise ValueError("Pas de cours disponible")
     info = catalog.lookup(sym)
     pf = portfolio.summary()
+    acc = accounts.get()
     line = next((l for l in pf["lines"] if l["symbol"] == sym), None)
     held = sum(l["quantity"] for l in pf["lines"] if l["symbol"] == sym)
     adv = advisor.cached_verdicts().get(sym)
@@ -74,13 +89,16 @@ def plan(symbol: str, side: str, amount: float | None = None, quantity: float | 
         warnings.append("currency")
 
     if side == "buy":
-        if not info.get("pea", False):
+        if accounts.eligible(acc["type"], info) is False:
             warnings.append("not_pea")
+        if info.get("leveraged"):
+            warnings.append("leveraged")
         if adv and adv["verdict"] not in ("BUY", "STRONG_BUY"):
             warnings.append(f"verdict_{adv['verdict'].lower()}")
         if amount is None:
             # une ligne ne doit pas dépasser 20 % du PEA (titres + liquidités), y compris pour un PEA tout juste ouvert
-            room = max(0.0, MAX_LINE / 100 * pf["total"] - (line["value"] if line else 0))
+            cap = 100 if etf_exposure.is_broad(info) else MAX_LINE  # un ETF large peut constituer tout le portefeuille
+            room = max(0.0, cap / 100 * pf["total"] - (line["value"] if line else 0))
             amount = min(pf["cash"], room) if pf["cash"] else room
             if not pf["total"]:
                 amount = 1000.0
@@ -93,17 +111,20 @@ def plan(symbol: str, side: str, amount: float | None = None, quantity: float | 
             warnings.append("amount_too_small")
         gross = round(quantity * limit * fx, 2)  # en euros
         after = ((line["value"] if line else 0) + gross) / max(pf["total"] or gross, 1) * 100
-        if after > MAX_LINE:
+        if after > MAX_LINE and not etf_exposure.is_broad(info):
             warnings.append("line_heavy")
         c = costs(sym, "buy", gross, q["currency"])
         return {"symbol": sym, "side": side, "name": q["name"], "isin": info.get("isin"), "price": price, "currency": q["currency"], "fx": fx,
                 "amount_native": round(quantity * limit, 2), "alternatives": info.get("alternatives", []), "costs": c,
                 "quantity": quantity, "limit": limit, "amount": gross, "fees": c["total"], "total": round(gross + c["total"], 2),
-                "stop_loss": _round(price * (1 - move), up=False), "target": _round(price * (1 + 2 * move), up=True),
+                # seuils de suivi facultatifs (désactivés par défaut) : un stop vend souvent au pire moment sur le long terme
+                **({"stop_loss": _round(price * (1 - move), up=False), "target": _round(price * (1 + 2 * move), up=True)}
+                   if fees_settings()["stops"] else {}),
+                "envelope": accounts.envelope(info, sym), "account": {"id": acc["id"], "label": acc["label"], "name": acc["name"]},
                 "weight_after": round(after, 1), "advice": adv, "warnings": warnings, "fees_settings": fees_settings()}
 
     if not held:
-        raise ValueError("Vous ne détenez pas cette valeur dans Mon PEA")
+        raise ValueError(f"Vous ne détenez pas cette valeur dans ce compte ({acc['name']})")
     if side == "sell":
         quantity = held
     else:
@@ -122,7 +143,8 @@ def plan(symbol: str, side: str, amount: float | None = None, quantity: float | 
             "quantity": quantity, "held": held, "limit": limit, "amount": gross,
             "fees": costs(sym, side, gross, q["currency"])["total"], "total": round(gross - costs(sym, side, gross, q["currency"])["total"], 2),
             "realized_pnl": round(gross - pru * quantity - costs(sym, side, gross, q["currency"])["total"], 2), "avg_price": pru,
-            "advice": adv, "warnings": warnings, "fees_settings": fees_settings()}
+            "advice": adv, "warnings": warnings, "fees_settings": fees_settings(),
+            "account": {"id": acc["id"], "label": acc["label"], "name": acc["name"]}}
 
 
 def execute(symbol: str, side: str, quantity: float, price: float, fees: float, day: str | None = None) -> dict:
@@ -131,10 +153,11 @@ def execute(symbol: str, side: str, quantity: float, price: float, fees: float, 
         raise ValueError("Sens d'ordre inconnu")
     pf = portfolio.add_movement("buy" if side == "buy" else "sell", day or date.today().isoformat(), symbol, quantity, price, fees)
     with store.connect() as conn:
-        conn.execute("INSERT INTO orders_log (symbol, side, quantity, price, fees) VALUES (?, ?, ?, ?, ?)", (symbol.upper(), side, quantity, price, fees))
+        conn.execute("INSERT INTO orders_log (symbol, side, quantity, price, fees, account) VALUES (?, ?, ?, ?, ?, ?)",
+                     (symbol.upper(), side, quantity, price, fees, accounts.current()))
     return pf
 
 
 def journal() -> list[dict]:
     with store.connect() as conn:
-        return [dict(r) for r in conn.execute("SELECT * FROM orders_log ORDER BY at DESC LIMIT 200")]
+        return [dict(r) for r in conn.execute("SELECT * FROM orders_log WHERE account = ? ORDER BY at DESC LIMIT 200", (accounts.current(),))]

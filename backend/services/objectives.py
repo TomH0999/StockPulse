@@ -1,7 +1,8 @@
-"""Objectifs et paramètres du PEA choisis par l'utilisateur."""
+"""Objectifs et paramètres de chaque compte choisis par l'utilisateur (date d'ouverture, versements, allocation)."""
 import json
 
 import store
+from services import accounts
 
 DEFAULTS = {
     "opened": None,          # date d'ouverture du PEA (AAAA-MM-JJ)
@@ -18,8 +19,13 @@ LIMITS = {"monthly_deposit": (0, 20000), "etf_share": (0, 100), "max_line": (5, 
           "cash_reserve": (0, 50), "fx_fee_pct": (0, 5)}
 
 
+def _key() -> str:
+    acc = accounts.current()
+    return "objectives" if acc == "pea" else f"objectives:{acc}"
+
+
 def get() -> dict:
-    raw = store.get_setting("objectives")
+    raw = store.get_setting(_key())
     return {**DEFAULTS, **(json.loads(raw) if raw else {})}
 
 
@@ -34,5 +40,5 @@ def update(values: dict) -> dict:
             if not lo <= v <= hi:
                 raise ValueError(f"{k} doit être entre {lo} et {hi}")
         cur[k] = v
-    store.set_setting("objectives", json.dumps(cur))
+    store.set_setting(_key(), json.dumps(cur))
     return cur

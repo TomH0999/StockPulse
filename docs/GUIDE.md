@@ -41,10 +41,11 @@ Règles importantes :
 - Une clé « en pause » affiche la raison (limite de débit ou quota du jour atteint) et l'heure de reprise.
 - Ne partagez jamais vos clés. Si une clé a été exposée, supprimez-la sur le site du fournisseur et créez-en une autre.
 
-## 3. Clés de données de marché (5 min) — ⚙ Paramètres → Clés de données
+## 3. Clés de données de marché (facultatif) — ⚙ Paramètres → Clés de données
 
-Elles ajoutent PER, marge, dette, rentabilité et les dates des prochains résultats / dividendes (cache de 7 jours par valeur,
-récupérées seulement pour votre PEA, vos favoris et les valeurs que vous ouvrez).
+Depuis la v3, **les comptes des entreprises (chiffre d'affaires, free cash-flow, ROIC, dette, dividendes…) sont récupérés sans
+clé**, y compris pour les valeurs européennes. Ces clés n'ajoutent plus que les dates des prochains résultats et l'objectif de
+cours des analystes.
 
 | Fournisseur | Étapes | Quota gratuit |
 |---|---|---|
@@ -57,14 +58,19 @@ Les offres gratuites couvrent surtout les actions américaines ; pour les valeur
 ## 4. Réglages (2 min) — ⚙ Paramètres
 
 - **Langue et thème** : en haut à droite.
-- **Frais de courtage** : renseignez ceux de votre courtier pour des ordres justes. Exemples courants (à vérifier sur la grille
-  tarifaire de votre courtier) : 0,5 % avec un minimum autour de 2 € chez les banques en ligne, frais fixes de quelques euros
-  chez les courtiers à bas coût.
+- **Frais de courtage** : renseignez ceux de votre courtier (le plafond légal en PEA est de 0,5 % par ordre en ligne ; beaucoup
+  de courtiers sont bien en dessous). Les valeurs par défaut (0,5 %, minimum 1,99 €) sont à remplacer.
+- **Stop et objectif dans les ordres** : désactivés par défaut. Sur une ligne de long terme, un stop vend souvent au pire moment.
 - **Analyses automatiques** : l'analyse locale tourne seule en arrière-plan ; l'analyse IA se lance à la demande avec le bouton « Analyser avec l'IA » (elle tient compte de votre position et de votre PEA).
 
-## 5. Renseigner votre PEA (5 min) — onglet « Mon PEA »
+## 5. Renseigner vos comptes (5 min) — onglet « Mes comptes »
 
-Le PEA fonctionne comme un journal de mouvements : liquidités, PRU, plus-values et plafond sont calculés automatiquement.
+Le PEA existe par défaut. **« + Compte »** ajoute un PEA-PME, un PEA jeune, un compte-titres (CTO) ou une assurance-vie ; chaque
+compte a son journal, ses liquidités, son plafond et sa fiscalité (taux 2026 : prélèvements sociaux 18,6 %, flat tax 31,4 % ;
+assurance-vie 17,2 %). Le PEA-PME partage le plafond de 225 000 € avec le PEA. Dans un compte-titres, les moins-values sont
+reportées 10 ans et l'impôt de l'année est estimé.
+
+Chaque compte fonctionne comme un journal de mouvements : liquidités, PRU, plus-values et plafond sont calculés automatiquement.
 1. **Versement** : saisissez vos versements (date, montant) ; c'est la seule façon d'alimenter le PEA.
 2. **Achat** : pour chaque action détenue, saisissez vos achats (date, quantité, prix unitaire, frais) tels qu'indiqués par
    votre courtier ; le PRU est calculé (frais inclus). Pour une reprise rapide, un seul achat au PRU affiché par votre courtier suffit.
@@ -75,8 +81,11 @@ Le PEA fonctionne comme un journal de mouvements : liquidités, PRU, plus-values
    part d'ETF souhaitée, plafonds par ligne / secteur, frais de change de votre courtier.
 6. **Vue d'ensemble → Plan d'ensemble** : toutes les suggestions combinées (aucune vente pour financer un autre achat, pas
    d'allègement d'une ligne récente) ; **Conseil ligne par ligne** : que faire de chaque ligne prise isolément.
-7. **Performance & dividendes** : vraie performance du PEA comparée au CAC 40 et au MSCI World, dividendes reçus et attendus.
-8. Après chaque ordre réellement passé chez le courtier, cliquez « J'ai passé cet ordre » : quantités, PRU et liquidités se
+7. **Performance & dividendes** : rendement réel (TRI, dates des versements comprises) et la question honnête : « avec les mêmes
+   versements aux mêmes dates sur un ETF MSCI World dividendes réinvestis (CW8), combien aurais-je ? ».
+8. **Ma thèse** (icône carnet sur chaque ligne, ou dans l'Analyse) : pourquoi vous détenez l'entreprise, ce qu'elle vaut selon
+   vous, quand vous vendriez. Un rappel vous demande de la relire chaque année.
+9. Après chaque ordre réellement passé chez le courtier, cliquez « J'ai passé cet ordre » : quantités, PRU et liquidités se
    mettent à jour partout.
 
 ## 6. Passer un ordre avec l'application
@@ -84,8 +93,9 @@ Le PEA fonctionne comme un journal de mouvements : liquidités, PRU, plus-values
 Dans l'onglet **Analyse** d'une valeur (ou depuis le rééquilibrage) : **Préparer un ordre d'achat / d'allègement / de vente**.
 L'application donne, dans l'ordre, ce qu'il faut saisir chez le courtier :
 compte PEA → ISIN → sens → quantité → ordre à cours limité et limite → validité jour → vérification du montant → validation.
-Un ordre « stop » facultatif est proposé pour limiter les pertes. Vérifiez les avertissements affichés (valeur non éligible au
-PEA, conseil défavorable, ligne trop lourde, liquidités insuffisantes).
+L'application indique aussi l'enveloppe adaptée (PEA pour une société européenne, compte-titres avec formulaire W-8BEN pour une
+action américaine). Le prix limite est arrondi à un pas de cotation accepté quelle que soit la liquidité du titre. Vérifiez les
+avertissements affichés (valeur non éligible, ETF à effet de levier, ligne trop lourde, liquidités insuffisantes).
 
 ## 7. Favoris de départ
 
@@ -107,35 +117,46 @@ vous alerte).
 
 ## 8. Opportunités du moment
 
-Les opportunités évoluent chaque jour : consultez **Tableau de bord → Opportunités PEA** et **Classement → Meilleur score
-d'achat / Achats les plus fiables / Qualité en solde** (filtre « Éligibles PEA uniquement »). Instantané au moment de la
-publication de cette version (analyse locale, sans IA) :
+Les opportunités évoluent : consultez **Tableau de bord → Qualité à prix raisonnable** et **Classement** (meilleure qualité,
+meilleurs rendements de free cash-flow, les moins chères face à leur historique, ROIC, dividendes réguliers, bilans solides).
+Instantané au moment de la publication de la v3.0 (modèle long terme, sans IA), sur 456 grandes valeurs éligibles au PEA :
 
-Analyse du 30/10/2026 ; filtre : éligible PEA, conseil « Achat » ou « Achat fort » (score ≥ 25), fiabilité passée à 3 mois ≥ 55 %.
+| Valeur | Secteur | Conseil | Score | Qualité | Rendement FCF | ROIC / ROE moyen | PER / sa médiane | Avantage vs CW8 (1 an) | Devise |
+|---|---|---|---|---|---|---|---|---|---|
+| Evolution AB (publ) (EVO.ST) | Consumer Cyclical | Achat fort | +88 | 25/25 | 7,2 % | 27 % | 15 / 22 | +0,1 pts | SEK |
+| Pandora A/S (PNDORA.CO) | Consumer Cyclical | Achat fort | +85 | 25/25 | 8,2 % | 42 % | 13 / 17 | 0,0 pts | DKK |
+| Wolters Kluwer N.V. (WKL.AS) | Industrials | Achat fort | +80 | 25/25 | 6,5 % | 22 % | 16 / 32 | +0,9 pts | EUR |
+| Ryanair Holdings plc (RYA.IR) | Industrials | Achat fort | +74 | 25/25 | 6,9 % | 18 % | 12 / 13 | 0,0 pts | EUR |
+| Hugo Boss AG (BOSS.DE) | Consumer Cyclical | Achat fort | +72 | 22/25 | 18,7 % | 18 % | 11 / 18 | +1,0 pts | EUR |
+| Nemetschek SE (NEM.DE) | Technology | Achat fort | +72 | 25/25 | 5,0 % | 19 % | 36 / 56 | -1,7 pts | EUR |
+| TUI AG (TUI1.DE) | Consumer Cyclical | Achat fort | +70 | 17/25 | 34,6 % | 30 % | 6 / 7 | -0,6 pts | EUR |
+| Publicis Groupe S.A. (PUB.PA) | Communication Services | Achat fort | +67 | 17/25 | 10,2 % | 12 % | 16 / 16 | 0,0 pts | EUR |
+| RATIONAL Aktiengesellschaft (RAA.DE) | Industrials | Achat fort | +66 | 22/25 | 3,0 % | 28 % | 29 / 37 | -8,3 pts | EUR |
+| Amadeus IT Group, S.A. (AMS.MC) | Technology | Achat fort | +64 | 11/25 | 5,4 % | 14 % | 20 / 27 | +8,1 pts ✓ | EUR |
+| Dassault Systèmes SE (DSY.PA) | Technology | Achat fort | +63 | 13/25 | 4,2 % | 10 % | 29 / 48 | 0,0 pts | EUR |
+| Logista Integral, S.A. (LOG.MC) | Industrials | Achat fort | +62 | 22/25 | 7,3 % | 44 % | 16 / 12 | 0,0 pts | EUR |
+| Beiersdorf Aktiengesellschaft (BEI.DE) | Consumer Defensive | Achat fort | +61 | 19/25 | 1,7 % | 10 % | 20 / 32 | 0,0 pts | EUR |
+| Jerónimo Martins, SGPS, S.A. (JMT.LS) | Consumer Defensive | Achat fort | +61 | 22/25 | 11,2 % | 24 % | 19 / 19 | 0,0 pts | EUR |
+| Kongsberg Maritime ASA (KMAR.OL) | Industrials | Achat fort | +61 | 22/25 | 8,4 % | 38 % | 14 / – | – | NOK |
 
-| Valeur | Secteur | Conseil | Score | Fiabilité 3 mois | Hausse 3 mois | Devise |
-|---|---|---|---|---|---|---|
-| Lottomatica Group S.p.A. (LTMC.MI) | Consumer Cyclical | Achat fort | +62 | 59 % | +8.6 % | EUR |
-| Frontline plc (FRO.OL) | Energy | Achat fort | +55 | 63 % | +37.1 % | NOK |
-| Klaveness Combination Carriers ASA (KCC.OL) | Industrials | Achat fort | +53 | 61 % | +11.9 % | NOK |
-| Eni S.p.A. (ENI.MI) | Energy | Achat fort | +51 | 58 % | +12.1 % | EUR |
-| Evonik Industries AG (EVK.DE) | Basic Materials | Achat fort | +49 | 56 % | +21.2 % | EUR |
-| Technoprobe S.p.A. (TPRO.MI) | Technology | Achat fort | +47 | 57 % | -5.1 % | EUR |
-| Smartoptics Group ASA (SMOP.OL) | Technology | Achat fort | +45 | 58 % | +17.0 % | NOK |
-| Iberdrola, S.A. (IBE.MC) | Utilities | Achat fort | +45 | 65 % | +6.7 % | EUR |
-| Höegh Autoliners ASA (HAUTO.OL) | Industrials | Achat fort | +45 | 57 % | +7.4 % | NOK |
-| Jyske Bank A/S (JYSK.CO) | Financial Services | Achat fort | +44 | 56 % | +5.2 % | DKK |
-
-Ces signaux reposent surtout sur la tendance des cours (aucune analyse IA ni fondamentaux dans cet instantané) ; plusieurs valeurs sont cotées en couronnes (NOK, DKK) : vérifiez que votre courtier y donne accès dans le PEA.
-
-Avant d'acheter : ouvrez l'analyse, lisez les menaces, la fiabilité passée de la valeur et les articles récents ; préférez
-plusieurs achats échelonnés à un achat unique.
+Lecture honnête :
+- 165 valeurs sur 456 ressortent « Achat » ou « Achat fort » : ce sont des entreprises rentables, peu endettées et pas
+  plus chères que leur propre historique. Ce n'est pas une prédiction de hausse.
+- La colonne « Avantage vs CW8 » mesure si ce même modèle, rejoué chaque mois depuis la publication des comptes disponibles
+  (2023-2025), a fait mieux que le MSCI World : en moyenne **non** (−3,5 points sur toutes les valeurs testées). ✓ = avantage d'au
+  moins 5 points sur la valeur ; avec si peu d'années, une partie de ces ✓ relève du hasard.
+- Plusieurs valeurs sont cotées en couronnes (SEK, DKK, NOK) : vérifiez que votre courtier y donne accès dans le PEA.
+- Pour la majorité des investisseurs, un ETF MSCI World (CW8, WPEA, DCAM) en socle reste la base la plus robuste ; les actions
+  en direct se justifient si vous savez écrire pourquoi vous les détenez (onglet « Ma thèse »).
 
 ## 9. Utilisation au quotidien
 
-- **Tableau de bord** : état de l'application, PEA, alertes, opportunités, mouvements du jour, fiabilité des conseils.
-- **Alertes** : la cloche 🔔 de l'onglet Analyse crée une alerte de prix ; les changements de conseil et les baisses de plus de
-  5 % de vos lignes déclenchent une notification de l'ordinateur.
+- **Tableau de bord** : état de l'application, comptes, alertes, qualité à prix raisonnable, thèses à relire, fiabilité mesurée.
+- **Analyse** : verdict long terme (fondamentaux et valorisation 60 %, qualité 25 %, tendance 200 jours 15 %), fiabilité mesurée
+  face au MSCI World, chiffres de l'entreprise, risque et taille de ligne, enveloppe conseillée. L'IA donne une lecture à part :
+  elle explique, elle ne décide pas.
+- **Alertes** : seulement vos alertes de prix (cloche 🔔) et la revue annuelle de vos thèses ; plus d'alerte sur les variations du
+  jour ni sur les changements de verdict.
 - **Classement / Entreprises** : 2 900 valeurs (1 740 éligibles PEA), mises à jour chaque jour ; les valeurs suspendues ou
   radiées sont étiquetées et exclues des classements.
 - **État de l'application** (icône en haut) : si un point devient rouge, l'application vous prévient par notification.

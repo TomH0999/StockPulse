@@ -8,7 +8,7 @@ import math
 from datetime import date
 
 import catalog
-from services import advisor, fx, objectives, orders, screener
+from services import accounts, advisor, etf_exposure, fx, objectives, orders, screener
 
 CONF = {"low": 0.5, "medium": 0.8, "high": 1.0}
 MIN_LINES = 5
@@ -25,8 +25,8 @@ def conviction(adv: dict | None) -> float:
         return 0.0
     # pente modérée : la calibration sur 5 ans (tools/calibrate.py) ne montre pas de pouvoir prédictif stable du score
     c = 1 + adv["score"] / 100 * CONF.get(adv.get("confidence"), 0.8) * 0.8
-    if adv.get("hit_6m") is not None:
-        c *= 0.75 + 0.5 * min(1.0, max(0.0, adv["hit_6m"] / 100))  # conseils historiquement peu fiables : pris avec prudence
+    if adv.get("edge_1y") is not None:
+        c *= 1 + max(-0.25, min(0.15, adv["edge_1y"] / 100))  # conseils qui n'ont pas battu le MSCI World : pris avec prudence
     if adv.get("cagr") is not None:
         c *= 1 + max(-0.2, min(0.2, adv["cagr"] / 100))
     return max(0.0, c)
@@ -80,6 +80,10 @@ def plan(summary: dict) -> dict:
     verdicts = advisor.cached_verdicts()
     snap, _ = screener.snapshot(max_age=86400)
     info = {s: catalog.lookup(s) for s in set(verdicts) | set(held)}
+    acc = accounts.get()
+    acc_type, pea_rules = acc["type"], acc["pea_rules"]
+    pea_id = next((a["id"] for a in accounts.all_accounts() if a["type"] == "PEA"), None)
+    pea_room = bool(pea_id) and (accounts.ceiling_left(pea_id) or 0) > 0
     sector = {s: (info.get(s) or {}).get("sector") or "?" for s in info}
     price_eur = {s: l["price"] * (l.get("fx") or 1.0) for s, l in held.items()}
     value = {s: l["value"] for s, l in held.items()}
@@ -98,13 +102,13 @@ def plan(summary: dict) -> dict:
         a = adv.get(s) or {}
         recent = _days_since(l.get("last_buy")) < HOLD_DAYS
         weight = l["value"] / total
-        if (info.get(s) or {}).get("pea") is False:
+        if pea_rules and accounts.eligible(acc_type, info.get(s)) is False:
             act(s, "sell", l["quantity"], ["not_pea"])
-        elif a.get("verdict") == "SELL" and a.get("confidence") != "low":
-            act(s, "sell", l["quantity"], ["verdict_sell"])
-        elif weight > max_line + TOLERANCE / 100:
+        elif a.get("verdict") == "SELL" and a.get("confidence") != "low" and a.get("reliable"):
+            act(s, "sell", l["quantity"], ["verdict_sell"])  # seulement si le verdict a fait ses preuves sur cette valeur
+        elif weight > max_line + TOLERANCE / 100 and not etf_exposure.is_broad(info.get(s)):
             act(s, "reduce", math.ceil((weight - max_line) * total / price_eur[s]), ["over_line_cap"])
-        elif a.get("verdict") == "REDUCE" and a.get("score", 0) <= -25 and not recent:
+        elif a.get("verdict") == "REDUCE" and a.get("score", 0) <= -25 and a.get("reliable") and not recent:
             act(s, "reduce", max(1, math.floor(l["quantity"] / 3)), ["verdict_reduce"])
         elif recent:
             line_notes[s] = "recent"
@@ -130,8 +134,16 @@ def plan(summary: dict) -> dict:
     vol = lambda s: max(10.0, (verdicts.get(s) or {}).get("volatility") or (snap.get(s) or {}).get("volatility") or 30.0)  # noqa: E731
     raw = {s: conviction(adv.get(s)) / math.sqrt(vol(s)) for s in held if value.get(s, 0) > 0 and s != etf}
     held_sectors = {sector[s] for s in raw}
+    # Idées d'achat : entreprises de qualité aux comptes connus, dans l'enveloppe adaptée (PEA : éligibles ;
+    # compte-titres : de préférence ce que le PEA ne peut pas contenir, tant qu'il reste de la place dans le PEA)
+    def fits(s):
+        e = info.get(s) or {}
+        if pea_rules:
+            return accounts.eligible(acc_type, e) is True
+        return not (e.get("pea") and pea_room)
     cands = sorted((s for s, v in verdicts.items() if s not in held and s != etf and v["score"] >= 25 and v["verdict"] in ("BUY", "STRONG_BUY")
-                    and (info.get(s) or {}).get("pea") and not (info.get(s) or {}).get("status") and (info.get(s) or {}).get("kind", "stock") == "stock"),
+                    and (v.get("coverage") or 0) >= 0.75 and fits(s)
+                    and not (info.get(s) or {}).get("status") and (info.get(s) or {}).get("kind", "stock") == "stock"),
                    key=lambda s: -(conviction(verdicts[s]) + (0.5 if sector[s] not in held_sectors else 0)))
     picked, used = [], set(held_sectors)
     for s in cands:

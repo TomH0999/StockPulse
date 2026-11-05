@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Activity, Bell, Briefcase, Flame, Gauge, Sparkles, Star } from 'lucide-react';
-import { AlertEvent, api, Favorite, HealthReport, money, onPortfolioChanged, pct, ScreenerRow } from '../services/api';
+import { Activity, Bell, Briefcase, Gauge, NotebookPen, Sparkles, Star } from 'lucide-react';
+import { AlertEvent, api, Favorite, HealthReport, money, onPortfolioChanged, pct, ScreenerRow, Thesis } from '../services/api';
 import { fill } from '../i18n';
 import { useI18n } from '../context';
 import { useScreener } from '../hooks/useScreener';
@@ -43,12 +43,14 @@ export function HomeView({ health, onRecheck, checking, onOpen, onNavigate }: Pr
   const [pf] = usePortfolio();
   const [favorites, setFavorites] = useState<Favorite[]>([]);
   const [events, setEvents] = useState<AlertEvent[]>([]);
-  const [reliability, setReliability] = useState<Record<string, { symbols: number; n: number; hit_rate: number | null }>>({});
+  const [reliability, setReliability] = useState<Record<string, { symbols: number; n: number; edge: number | null; reliable: number }>>({});
+  const [due, setDue] = useState<Thesis[]>([]);
   useEffect(() => {
     const load = () => {
       api.favorites().then(setFavorites).catch(() => {});
       api.alerts().then((a) => setEvents(a.events)).catch(() => {});
       api.trackRecord().then(setReliability).catch(() => {});
+      api.theses().then((r) => setDue(r.due)).catch(() => {});
     };
     load();
     const id = setInterval(load, 120000);
@@ -57,12 +59,10 @@ export function HomeView({ health, onRecheck, checking, onOpen, onNavigate }: Pr
   }, []);
 
   const pea = useMemo(() => rows.filter((r) => r.pea && r.price), [rows]);
-  const opportunities = useMemo(() => pea.filter((r) => (r.advice?.score ?? 0) >= 15)
-    .sort((a, b) => b.advice!.score - a.advice!.score).slice(0, 6), [pea]);
-  const movers = useMemo(() => {
-    const s = [...pea].sort((a, b) => (b.chg_1d ?? 0) - (a.chg_1d ?? 0));
-    return [...s.slice(0, 3), ...s.slice(-3).reverse()];
-  }, [pea]);
+  // qualité à prix raisonnable : bonne qualité, pas plus chère que son historique, comptes disponibles
+  const opportunities = useMemo(() => pea.filter((r) => (r.advice?.quality ?? 0) >= 10 && (r.advice?.coverage ?? 0) >= 0.75
+      && (!r.advice?.pe || !r.advice.pe_history_median || r.advice.pe <= r.advice.pe_history_median * 1.05))
+    .sort((a, b) => (b.advice!.quality! + (b.advice!.valuation ?? 0)) - (a.advice!.quality! + (a.advice!.valuation ?? 0))).slice(0, 6), [pea]);
   const favRows = useMemo(() => favorites.map((f) => rows.find((r) => r.symbol === f.symbol)).filter(Boolean) as ScreenerRow[], [favorites, rows]);
   const alerts = pf?.lines.filter((l) => l.alerts.length) ?? [];
   const up = (v: number) => (v >= 0 ? 'up' : 'down');
@@ -76,7 +76,7 @@ export function HomeView({ health, onRecheck, checking, onOpen, onNavigate }: Pr
             <div><div className="label">{t.pfTotal}</div><div className="text-2xl font-bold">{money(pf.total, lang)}</div></div>
             <div><div className="label">{t.pfPnl}</div><div className={`text-xl font-bold ${up(pf.pnl)}`}>{money(pf.pnl, lang)} <span className="text-sm">{pct(pf.pnl_percent)}</span></div></div>
             <div><div className="label">{t.pfDay}</div><div className={`font-bold ${up(pf.day_change)}`}>{money(pf.day_change, lang)}</div></div>
-            <div><div className="label">{t.pfCeiling}</div><div className="font-bold">{Math.round((pf.deposits / pf.ceiling) * 100)} %</div></div>
+            <div><div className="label">{t.pfCeiling}</div><div className="font-bold">{pf.ceiling ? `${Math.round((pf.deposits / pf.ceiling) * 100)} %` : '–'}</div></div>
           </div>
         )}
       </Panel>
@@ -102,24 +102,27 @@ export function HomeView({ health, onRecheck, checking, onOpen, onNavigate }: Pr
         <HealthList report={health} onRecheck={onRecheck} busy={checking} />
       </Panel>
 
-      <Panel icon={<Sparkles className="w-4 h-4 text-sky-500" />} title={t.homeOpportunities} action={seeAll('leaderboard')}>
-        {opportunities.map((r) => <Row key={r.symbol} r={r} onOpen={onOpen} value={<span className="up">+{r.advice!.score}</span>} />)}
+      <Panel icon={<Sparkles className="w-4 h-4 text-sky-500" />} title={t.homeQuality} action={seeAll('leaderboard')}>
+        {opportunities.map((r) => <Row key={r.symbol} r={r} onOpen={onOpen}
+          value={<span className="text-xs">{r.advice!.fcf_yield != null ? `FCF ${r.advice!.fcf_yield.toFixed(1)} %` : ''}{r.advice!.roic_avg != null ? ` · ROIC ${r.advice!.roic_avg.toFixed(0)} %` : ''}</span>} />)}
         {!opportunities.length && <p className="text-sm muted">–</p>}
       </Panel>
 
-      <Panel icon={<Flame className="w-4 h-4 text-rose-500" />} title={t.homeMovers} action={seeAll('leaderboard')}>
-        {movers.map((r) => <Row key={r.symbol} r={r} onOpen={onOpen} value={<span className={up(r.chg_1d ?? 0)}>{pct(r.chg_1d)}</span>} />)}
+      <Panel icon={<NotebookPen className="w-4 h-4 text-violet-500" />} title={t.homeTheses} action={seeAll('portfolio')}>
+        {!due.length ? <p className="text-sm muted">{t.noTheses}</p> : due.map((d) => (
+          <p key={d.id} className="text-sm cursor-pointer text-amber-600 dark:text-amber-400" onClick={() => onOpen(d.symbol)}>📝 {d.symbol} · {d.thesis.slice(0, 80)}</p>
+        ))}
       </Panel>
 
       <Panel icon={<Gauge className="w-4 h-4 text-violet-500" />} title={t.globalReliability}>
         <p className="text-xs muted">{t.trackRecord}</p>
         <div className="grid grid-cols-3 gap-2 text-center">
-          {(['1m', '3m', '6m'] as const).map((h) => {
+          {(['1y', '3y', '5y'] as const).map((h) => {
             const r = reliability[h];
             return (
               <div key={h}>
-                <div className={`text-2xl font-bold ${!r?.hit_rate ? 'muted' : r.hit_rate >= 55 ? 'up' : r.hit_rate < 45 ? 'down' : ''}`}>{r?.hit_rate ?? '–'} %</div>
-                <div className="text-xs muted">{h === '6m' ? '6 m' : t[`p_${h}` as 'p_1m']} · {r?.symbols ?? 0} val.</div>
+                <div className={`text-2xl font-bold ${r?.edge == null ? 'muted' : r.edge >= 5 ? 'up' : r.edge <= -5 ? 'down' : ''}`}>{r?.edge != null ? `${r.edge > 0 ? '+' : ''}${r.edge}` : '–'} pts</div>
+                <div className="text-xs muted">{t[`hz_${h}`]} · {r?.reliable ?? 0}/{r?.symbols ?? 0} {t.reliableShort}</div>
               </div>
             );
           })}
@@ -128,7 +131,7 @@ export function HomeView({ health, onRecheck, checking, onOpen, onNavigate }: Pr
 
       <Panel icon={<Star className="w-4 h-4 text-amber-400" />} title={t.favorites}>
         {!favRows.length ? <p className="text-sm muted">{t.noFavorites}</p> :
-          favRows.map((r) => <Row key={r.symbol} r={r} onOpen={onOpen} value={<span className={up(r.chg_1d ?? 0)}>{pct(r.chg_1d)}</span>} />)}
+          favRows.map((r) => <Row key={r.symbol} r={r} onOpen={onOpen} value={<span className={up(r.chg_1y ?? 0)}>{pct(r.chg_1y)} <span className="muted text-[10px]">1 an</span></span>} />)}
       </Panel>
     </div>
   );

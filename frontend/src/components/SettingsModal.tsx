@@ -47,8 +47,11 @@ export function SettingsModal({ onClose, lang, setLang, dark, setDark, onSaved }
   const [data, setData] = useState<Awaited<ReturnType<typeof api.dataSettings>> | null>(null);
   const [dProvider, setDProvider] = useState('fmp');
   const [dKey, setDKey] = useState('');
-  const [fees, setFees] = useState({ pct: '0.5', min: '1.99' });
-  useEffect(() => { api.dataSettings().then(setData).catch(() => {}); }, []);
+  const [fees, setFees] = useState({ pct: '0.5', min: '1.99', stops: false });
+  useEffect(() => {
+    api.dataSettings().then(setData).catch(() => {});
+    api.fees().then((f) => setFees({ pct: String(f.pct), min: String(f.min), stops: f.stops })).catch(() => {});
+  }, []);
   const runData = (p: Promise<unknown>, done?: () => void) => {
     setBusy(true); setStatus(null);
     p.then(() => api.dataSettings()).then((d) => { setData(d); setStatus({ ok: true, msg: t.saved }); done?.(); })
@@ -67,7 +70,7 @@ export function SettingsModal({ onClose, lang, setLang, dark, setDark, onSaved }
           <div>
             <label className="label">{t.language}</label>
             <select className="input" value={lang} onChange={(e) => setLang(e.target.value as Lang)}>
-              <option value="fr">Français</option><option value="en">English</option><option value="es">Español</option><option value="zh">中文</option>
+              <option value="fr">Français</option><option value="en">English</option>
             </select>
           </div>
           <div>
@@ -143,8 +146,13 @@ export function SettingsModal({ onClose, lang, setLang, dark, setDark, onSaved }
           <div className="flex gap-2 items-end">
             <div className="w-28"><label className="label">{t.feePct}</label><input className="input" inputMode="decimal" value={fees.pct} onChange={(e) => setFees({ ...fees, pct: e.target.value })} /></div>
             <div className="w-28"><label className="label">{t.feeMin}</label><input className="input" inputMode="decimal" value={fees.min} onChange={(e) => setFees({ ...fees, min: e.target.value })} /></div>
-            <button className="btn !py-2" onClick={() => runData(api.setFees(Number(fees.pct.replace(',', '.')), Number(fees.min.replace(',', '.'))))}>{t.save}</button>
+            <button className="btn !py-2" onClick={() => runData(api.setFees(Number(fees.pct.replace(',', '.')), Number(fees.min.replace(',', '.')), fees.stops))}>{t.save}</button>
           </div>
+          <p className="text-[11px] muted">{t.feesVerify}</p>
+          <label className="flex items-start gap-2 text-sm cursor-pointer">
+            <input type="checkbox" className="mt-1" checked={fees.stops} onChange={(e) => setFees({ ...fees, stops: e.target.checked })} />
+            <span>{t.setStops}<span className="block text-[11px] muted">{t.setStopsHelp}</span></span>
+          </label>
         </section>
 
         {auto && (

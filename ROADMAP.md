@@ -86,3 +86,18 @@ Classement, liste des entreprises, analyses automatiques, pool de clés IA multi
 - [x] IA : raisonnement plus poussé, chiffres et risque fournis, ancrage sur le modèle local, scénarios et probabilité corrigés vers la moyenne du marché
 - [x] IA groupée : conseil retenu seulement à partir de 10 analyses et 70 % d'accord
 - [x] Page Analyse : carte « Décision » à côté du graphique et onglets Entreprise / Risque & force / Fiabilité / IA groupée / Historique IA / Rebondissements / Actualités
+
+## ✅ v3.0 — Investisseur long terme
+- [x] Moteur refondu : fondamentaux et valorisation 60, qualité et régularité 25, tendance 200 jours 15 ; RSI, croisements, paris sur rebond, saisonnalité et sentiment des articles retirés du score
+- [x] Comptes publiés sans clé (Yahoo, 4 exercices) : free cash-flow, ROIC, marges, dette nette / EBITDA, couverture, dilution, dividende (croissance, années sans baisse, taux de distribution), PER face à l'historique ; conversion de devise comptes / cotation
+- [x] Seuils sectoriels (banques, assurances, foncières : ROE, pas de ratio de dette) ; rendement total (dividendes réinvestis)
+- [x] Backtest honnête : même moteur, comptes connus à la date, comparaison à CW8, taux de base, horizons 1 / 3 / 5 ans
+- [x] L'IA n'a plus le dernier mot : lecture séparée, verdict inchangé
+- [x] Plusieurs comptes (PEA, PEA-PME, PEA jeune, CTO, assurance-vie), plafonds, fiscalité 2026 (LFSS 2026), moins-values reportables, enveloppe conseillée
+- [x] TRI et comparaison « si tout sur CW8 » ; ancien comparatif « portefeuille actuel rejoué » retiré (biais rétrospectif)
+- [x] Journal de thèse avec revue annuelle
+- [x] Diversification à travers les ETF ; ETF larges exemptés de la règle des 20 % ; ETF à levier signalés et exclus des suggestions
+- [x] Stop facultatif (désactivé par défaut), pas de cotation sûrs, alertes réduites (ni variations du jour ni changements de verdict)
+- [x] Classements et tableau de bord long terme (plus de « plus fortes hausses du jour ») ; langues réduites au français et à l'anglais
+- [x] Liechtenstein retiré par prudence des pays éligibles ; éligibilité « à confirmer » pour les valeurs sans ISIN
+- [ ] À venir : exposition géographique par chiffre d'affaires, comptes sur 10 ans (source payante), source de cours de secours

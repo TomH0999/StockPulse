@@ -87,6 +87,7 @@ def history(symbol: str, period: str = "1y", ttl: int = 60) -> list[dict]:
 def _history(symbol: str, rng: str, interval: str, ttl: int) -> list[dict]:
     result = _chart(symbol.upper().strip(), rng, interval, ttl)
     q = (result.get("indicators", {}).get("quote") or [{}])[0]
+    adj = ((result.get("indicators", {}).get("adjclose") or [{}])[0] or {}).get("adjclose") or []
     points = []
     for i, ts in enumerate(result.get("timestamp") or []):
         close = q.get("close", [None])[i] if i < len(q.get("close", [])) else None
@@ -98,6 +99,8 @@ def _history(symbol: str, rng: str, interval: str, ttl: int) -> list[dict]:
             "open": _num(q["open"][i], close), "high": _num(q["high"][i], close),
             "low": _num(q["low"][i], close), "close": _num(close),
             "volume": int(_num(q["volume"][i])),
+            # cours ajusté des dividendes et divisions : rendement total, utilisé pour les performances longues
+            "adj": _num(adj[i], close) if i < len(adj) and adj[i] is not None else _num(close),
         })
     return points
 

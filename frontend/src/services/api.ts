@@ -6,7 +6,18 @@ const API_BASE_URL = isServedByBackend ? '/api' : 'http://127.0.0.1:8000/api';
 
 export const apiClient = axios.create({ baseURL: API_BASE_URL });
 
-export type Lang = 'en' | 'fr' | 'es' | 'zh';
+/** Compte affiché (PEA, compte-titres…) : transmis à chaque appel, le serveur travaille sur ce compte. */
+const ACCOUNT_KEY = 'stockpulse:account';
+let currentAccount = (() => { try { return localStorage.getItem(ACCOUNT_KEY) || 'pea'; } catch { return 'pea'; } })();
+export const getAccount = () => currentAccount;
+export const setAccount = (id: string) => {
+  currentAccount = id;
+  try { localStorage.setItem(ACCOUNT_KEY, id); } catch { /* stockage indisponible */ }
+  notifyPortfolioChanged();
+};
+apiClient.interceptors.request.use((config) => ({ ...config, params: { account: currentAccount, ...(config.params ?? {}) } }));
+
+export type Lang = 'en' | 'fr';
 export type Verdict = 'STRONG_BUY' | 'BUY' | 'HOLD' | 'REDUCE' | 'SELL';
 
 export interface Quote {
@@ -77,13 +88,20 @@ export interface Advice {
   engine: string;
   ai_error: string | null;
   fundamentals: Fundamentals | null;
-  track_record: Record<'1m' | '3m' | '6m', { n: number; hit_rate: number | null; avg_after_buy: number | null; avg_after_sell: number | null }> | null;
+  track_record: Partial<Record<'1y' | '3y' | '5y', BacktestStats>> | null;
+  financials?: Financials | null;
+  ai_view?: AiView;
+  components?: Record<string, number>;
+  coverage?: number;
+  kind?: InstrumentKind;
+  leveraged?: boolean;
+  sector?: string | null;
   verification: { status: 'verified' | 'warning'; checked: number; unverified: string[]; notes: string[]; local_score: number } | null;
   generated_at: number;
   articles_analyzed: number;
   risk?: RiskInfo | Record<string, never>;
   relative?: RelativeInfo;
-  live_record?: { n: number } & Partial<Record<'1m' | '3m' | '6m', { n: number; hit_rate: number | null }>>;
+  live_record?: { n: number } & Partial<Record<'3m' | '6m' | '1y', { n: number; hit_rate: number | null }>>;
   reliability?: Reliability;
   health?: HealthScores | null;
   outlook?: Outlook | null;
@@ -95,6 +113,9 @@ export interface AdviceSummary {
   confidence: 'low' | 'medium' | 'high';
   engine: string;
   generated_at: number;
+  edge_1y?: number | null; reliable?: boolean | null; coverage?: number | null; quality?: number | null; valuation?: number | null;
+  fcf_yield?: number | null; roic_avg?: number | null; roe_avg?: number | null; pe?: number | null; pe_history_median?: number | null;
+  net_debt_ebitda?: number | null; div_streak?: number | null; dividend_yield?: number | null;
 }
 
 export interface Favorite {
@@ -114,6 +135,8 @@ export interface CatalogEntry {
   pea: boolean;
   sector: string | null;
   kind?: InstrumentKind;
+  leveraged?: boolean;
+  pea_source?: 'isin' | 'manual' | 'listing';
 }
 
 export type InstrumentKind = 'stock' | 'etf' | 'index' | 'commodity' | 'fx' | 'crypto';
@@ -234,14 +257,21 @@ export interface Portfolio {
   dividends: number;
   fees: number;
   gain: number;
-  ceiling_left: number;
-  ceiling: number;
+  ceiling_left: number | null;
+  ceiling: number | null;
   opened: string | null;
   five_years: string | null;
   mature: boolean;
   days_to_five_years: number;
   tax_rate: number | null;
   tax_if_withdrawn: number | null;
+  tax_note?: string;
+  tax_source?: string;
+  cto_tax?: { year: number; taxable_gains: number; dividends: number; tax: number; rate: number;
+    losses_carried: { year: number; amount: number; expires: number }[] } | null;
+  account?: { id: string; type: AccountType; name: string; label: string; pea_rules: boolean };
+  xirr?: number | null;
+  world?: { value: number | null; xirr: number | null; difference: number | null } | null;
   total: number;
   performance: number | null;
 }
@@ -259,8 +289,34 @@ export interface RiskInfo { volatility: number; downside_volatility: number; max
   worst_month: number | null; beta: number | null; level: 'low' | 'medium' | 'high' | 'very_high'; max_weight: number }
 export interface RelativeInfo { benchmark: string; excess_6m?: number; excess_12m?: number; momentum_12_1?: number;
   sector_rank?: number; sector_peers?: number; sector_median?: number }
+export type AccountType = 'PEA' | 'PEA_PME' | 'PEA_JEUNE' | 'CTO' | 'AV';
+export interface Account { id: string; type: AccountType; name: string; label: string; ceiling: number | null; ceiling_left: number | null; pea_rules: boolean }
+export interface Thesis { id: number; account: string; symbol: string; thesis: string; fair_value: number | null; sell_if: string;
+  created_at: number; reviewed_at: number | null; next_review: string }
+export interface Envelope { recommended: AccountType; label: string; have: boolean; reasons: string[] }
+export interface Financials {
+  years: number; first_year?: string; last_year?: string; financial_sector: boolean; currency?: string | null;
+  revenue?: number | null; net_income?: number | null; free_cash_flow?: number | null; ebitda?: number | null; market_cap?: number | null;
+  net_debt?: number | null; eps?: number | null; gross_margin?: number | null; operating_margin?: number | null; net_margin?: number | null;
+  fcf_margin?: number | null; fcf_yield?: number | null; pe?: number | null; pe_loss?: boolean; pe_history_median?: number | null;
+  pe_history_n?: number; ev_ebit?: number | null; roic?: number | null; roic_avg?: number | null; roic_min?: number | null;
+  roe?: number | null; roe_avg?: number | null; op_margin_std?: number | null; revenue_cagr?: number | null; eps_cagr?: number | null;
+  fcf_positive_years?: number; net_debt_ebitda?: number | null; interest_coverage?: number | null; dilution_pa?: number | null;
+  buyback_yield?: number | null; payout_ratio?: number | null; payout_fcf?: number | null; dividend_yield?: number | null;
+  dividends: { years_paid: number; last_year?: number; dps_last?: number; growth_5y?: number | null; growth_10y?: number | null;
+    years_without_cut?: number; paid_last_year?: boolean };
+  annual?: { year: string; revenue: number | null; operating_income: number | null; net_income: number | null; free_cash_flow: number | null;
+    eps: number | null; roic: number | null }[];
+}
+export interface BacktestStats { n: number; engine: 'full' | 'trend_only'; base: number | null; buy_n: number; buy_hit: number | null;
+  sell_n: number; sell_hit: number | null; edge: number | null; avg_excess_buy: number | null; avg_excess_all: number | null }
+export interface AiView { verdict: Verdict; verdict_label: string; score: number; confidence: 'low' | 'medium' | 'high'; horizon: string | null;
+  summary: string; opportunities: string[]; threats: string[]; patterns: string[]; catalysts: string[]; provider: string;
+  articles_analyzed: number; outlook: Outlook | null; generated_at: number;
+  verification: { status: 'verified' | 'warning'; checked: number; unverified: string[]; notes: string[]; local_score: number } | null }
 export interface Reliability { level: 'reliable' | 'weak' | 'contrarian' | 'insufficient'; signal: boolean; reasons: string[]; threshold: number }
 export interface HealthScores { profitability: number | null; growth: number | null; solidity: number | null; valuation: number | null;
+  regularity?: number | null;
   overall: number | null; criteria: number }
 export interface Outlook { scenarios: Record<'bear' | 'base' | 'bull', { return_12m: number; probability: number }>; expected_12m: number;
   expected_12m_adjusted: number; prob_outperform: number | null; prob_outperform_adjusted: number | null; shrink: number }
@@ -269,7 +325,8 @@ export interface OrderPlan {
   symbol: string; side: 'buy' | 'sell' | 'reduce'; name: string; isin: string | null; price: number; currency: string;
   quantity: number; held?: number; limit: number; amount: number; amount_native: number; fx: number; fees: number; total: number;
   stop_loss?: number; target?: number; weight_after?: number; realized_pnl?: number; avg_price?: number;
-  advice: AdviceSummary | null; warnings: string[]; fees_settings: { pct: number; min: number };
+  advice: AdviceSummary | null; warnings: string[]; fees_settings: { pct: number; min: number; stops?: boolean };
+  envelope?: Envelope; account?: { id: string; label: string; name: string };
   costs?: { broker: number; ttf: number; fx: number; total: number };
 }
 
@@ -290,7 +347,7 @@ export interface Objectives {
   opened: string | null; monthly_deposit: number; etf_share: number; etf_symbol: string; max_line: number; max_sector: number;
   cash_reserve: number; fx_fee_pct: number; ttf: boolean;
 }
-export interface HistoryPoint2 { day: string; value: number; invested: number; pea: number; [bench: string]: number | string | null }
+export interface HistoryPoint2 { day: string; value: number; invested: number; pea: number; world_value: number | null; [bench: string]: number | string | null }
 export interface ImportRow { line: number; type: string | null; day: string | null; symbol?: string | null; label: string | null;
   quantity: number | null; price: number | null; fees: number; amount: number | null; error: string | null; raw_type: string }
 
@@ -342,12 +399,13 @@ export const api = {
   orderPlan: (symbol: string, side: string, amount?: number, quantity?: number) => get<OrderPlan>('/orders/plan', { symbol, side, amount, quantity }),
   executeOrder: async (symbol: string, side: string, quantity: number, price: number, fees: number) =>
     (await apiClient.post<Portfolio>('/orders/execute', { symbol, side, quantity, price, fees })).data,
-  setFees: async (pct: number, minimum: number) => (await apiClient.put('/orders/fees', { pct, minimum })).data,
+  setFees: async (pct: number, minimum: number, stops?: boolean) => (await apiClient.put('/orders/fees', { pct, minimum, stops })).data,
+  fees: () => get<{ pct: number; min: number; stops: boolean }>('/orders/fees'),
   dataSettings: () => get<{ providers: Record<string, string>; keys: { id: string; provider: string; hint: string }[]; catalog_updated: number }>('/settings/data'),
   addDataKey: async (provider: string, key: string) => (await apiClient.post('/settings/data/keys', { provider, key })).data,
   removeDataKey: async (id: string) => (await apiClient.delete(`/settings/data/keys/${id}`)).data,
   portfolioAnalysis: (period = '1y') => get<PortfolioAnalysis>('/portfolio/analysis', { period }),
-  trackRecord: () => get<Record<string, { symbols: number; n: number; hit_rate: number | null }>>('/track-record'),
+  trackRecord: () => get<Record<string, { symbols: number; n: number; edge: number | null; reliable: number }>>('/track-record'),
   alerts: () => get<{ price_alerts: PriceAlert[]; events: AlertEvent[] }>('/alerts'),
   addAlert: async (symbol: string, direction: string, price: number) => (await apiClient.post<PriceAlert[]>('/alerts', { symbol, direction, price })).data,
   removeAlert: async (id: number) => (await apiClient.delete<PriceAlert[]>(`/alerts/${id}`)).data,
@@ -356,7 +414,19 @@ export const api = {
   updateMovement: async (id: number, m: Partial<Movement>) => (await apiClient.put<Portfolio>(`/portfolio/movements/${id}`, m)).data,
   importCsv: async (content: string, commit: boolean) =>
     (await apiClient.post<{ rows: ImportRow[]; valid: number; errors: number; added?: number; columns: Record<string, string> }>('/portfolio/import', { content, commit })).data,
-  peaHistory: () => get<{ points: HistoryPoint2[]; benchmarks: string[]; performance?: number; benchmark_performance?: Record<string, number | null> }>('/portfolio/history'),
+  peaHistory: () => get<{ points: HistoryPoint2[]; benchmarks: string[]; performance?: number; benchmark_performance?: Record<string, number | null>;
+    xirr?: number | null; world?: { value: number | null; xirr: number | null; difference: number | null } | null }>('/portfolio/history'),
+  accounts: () => get<{ accounts: Account[]; types: Record<AccountType, string> }>('/accounts'),
+  createAccount: async (type: AccountType, name: string) => (await apiClient.post<Account>('/accounts', { type, name })).data,
+  renameAccount: async (id: string, name: string) => (await apiClient.put<Account>(`/accounts/${id}`, { name })).data,
+  deleteAccount: async (id: string) => (await apiClient.delete(`/accounts/${id}`)).data,
+  envelope: (symbol: string) => get<Envelope>(`/envelope/${encodeURIComponent(symbol)}`),
+  taxes: () => get<{ ir: number; ps: number; ps_av: number; pfu: number; us_withholding: number; source: string }>('/taxes'),
+  theses: () => get<{ theses: Thesis[]; due: Thesis[] }>('/theses'),
+  thesis: (symbol: string) => get<Thesis | null>(`/theses/${encodeURIComponent(symbol)}`),
+  saveThesis: async (symbol: string, thesis: string, fair_value: number | null, sell_if: string) =>
+    (await apiClient.put<Thesis>(`/theses/${encodeURIComponent(symbol)}`, { thesis, fair_value, sell_if })).data,
+  deleteThesis: async (symbol: string) => (await apiClient.delete(`/theses/${encodeURIComponent(symbol)}`)).data,
   dividends: () => get<{ received: { day: string; symbol: string; amount: number }[]; upcoming: { symbol: string; date: string; per_share: number | null; amount: number; estimated: boolean }[];
     received_total: number; next_12m: number; yield: number | null }>('/portfolio/dividends'),
   depositPlan: (amount: number) => get<{ amount: number; actions: RebalanceAction[] }>('/portfolio/deposit-plan', { amount }),

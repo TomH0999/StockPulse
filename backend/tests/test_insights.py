@@ -35,38 +35,45 @@ def test_relative_strength_vs_benchmark_and_sector():
     assert insights.benchmark("SAP.DE")[1] == "STOXX Europe 600" and insights.benchmark("AAPL")[0] == "^GSPC"
 
 
-def test_reliability_levels():
+def test_reliability_levels_vs_world():
     risk = {"level": "medium"}
     assert insights.reliability(None, None, risk)["level"] == "insufficient"
-    good = {"6m": {"n": 50, "hit_rate": 62}}
+    good = {"1y": {"buy_n": 30, "sell_n": 5, "edge": 12, "engine": "full"}}
     assert insights.reliability(good, None, risk)["signal"] is True
-    coin = {"6m": {"n": 50, "hit_rate": 50}}
-    assert insights.reliability(coin, None, risk)["level"] == "weak"
+    assert insights.reliability({"1y": {"buy_n": 30, "sell_n": 0, "edge": 1}}, None, risk)["level"] == "weak"
     # les conseils réellement émis comptent double : un vrai historique mauvais fait tomber le signal
-    assert insights.reliability(good, {"6m": {"n": 40, "hit_rate": 40}}, risk)["level"] == "weak"
-    assert insights.reliability({"6m": {"n": 50, "hit_rate": 30}}, None, risk)["level"] == "contrarian"
+    assert insights.reliability(good, {"1y": {"n": 40, "hit_rate": 35}}, risk)["level"] in ("weak", "contrarian")
+    assert insights.reliability({"1y": {"buy_n": 30, "sell_n": 0, "edge": -15}}, None, risk)["level"] == "contrarian"
+    assert "trend_only" in insights.reliability({"1y": {"buy_n": 3, "engine": "trend_only"}}, None, risk)["reasons"]
 
 
-def test_live_record_uses_real_past_advice():
-    hist = _series(lambda i: 0.001, n=400)
-    day0 = hist[100]["ts"]
+def test_live_record_compares_to_world():
     import time as _t
-    d = _t.strftime("%Y-%m-%d", _t.localtime(day0 + 43200))
+    hist = _series(lambda i: 0.001, n=800)
+    world = _series(lambda i: 0.0005, n=800)
+    day = lambda i: _t.strftime("%Y-%m-%d", _t.localtime(hist[i]["ts"] + 43200))
     with store.connect() as conn:
         conn.execute("INSERT OR REPLACE INTO advice_history (symbol, day, verdict, score, price, engine) VALUES ('LIVE', ?, 'BUY', 30, ?, 'local')",
-                     (d, hist[100]["close"]))
+                     (day(100), hist[100]["close"]))
         conn.execute("INSERT OR REPLACE INTO advice_history (symbol, day, verdict, score, price, engine) VALUES ('LIVE', ?, 'SELL', -30, ?, 'local')",
-                     (_t.strftime("%Y-%m-%d", _t.localtime(hist[150]["ts"] + 43200)), hist[150]["close"]))
-    r = insights.live_record("LIVE", hist)
-    assert r["n"] == 2 and r["1m"]["n"] == 2 and r["1m"]["hit_rate"] == 50   # l'achat juste, la vente fausse (cours en hausse)
+                     (day(150), hist[150]["close"]))
+        conn.execute("INSERT OR REPLACE INTO advice_history (symbol, day, verdict, score, price, engine) VALUES ('LIVE', ?, 'HOLD', 0, ?, 'local')",
+                     (day(160), hist[160]["close"]))
+    r = insights.live_record("LIVE", hist, world)
+    assert r["n"] == 3 and r["1y"]["n"] == 2 and r["1y"]["hit_rate"] == 50   # l'achat a battu le monde, la vente non ; « conserver » non compté
+    assert insights.live_record("LIVE", hist, None)["n"] == 3
 
 
 def test_financial_health_scores():
-    h = insights.health({"net_margin": 25, "roe": 30, "operating_margin": 30, "revenue_growth": 20, "earnings_growth": 25,
-                         "debt_to_equity": 0.2, "pe": 12})
-    assert h["profitability"] == 100 and h["growth"] == 100 and h["solidity"] == 100 and h["valuation"] > 90
-    bad = insights.health({"net_margin": -5, "pe": -3, "debt_to_equity": 4})
-    assert bad["profitability"] == 0 and bad["valuation"] == 0 and bad["solidity"] == 0 and bad["growth"] is None
+    good = {"years": 4, "roic_avg": 25, "operating_margin": 30, "revenue_cagr": 15, "eps_cagr": 20, "net_debt_ebitda": -0.5,
+            "interest_coverage": 30, "fcf_yield": 9, "pe": 10, "pe_history_median": 15, "op_margin_std": 0.5,
+            "dividends": {"years_without_cut": 20}}
+    h = insights.health(good)
+    assert h["profitability"] == 100 and h["growth"] == 100 and h["solidity"] == 100 and h["valuation"] > 80 and h["regularity"] == 100
+    bad = insights.health({"years": 4, "pe_loss": True, "net_debt_ebitda": 6, "roic_avg": 2})
+    assert bad["valuation"] == 0 and bad["solidity"] == 0 and bad["profitability"] == 0
+    bank = insights.health({"years": 4, "financial_sector": True, "roe_avg": 15, "net_debt_ebitda": 50})
+    assert bank["solidity"] is None and bank["profitability"] > 50
     assert insights.health(None) is None
 
 
@@ -90,5 +97,5 @@ def test_advise_includes_insights_and_ai_outlook(market, monkeypatch):
     monkeypatch.setattr(ai_pool, "complete_json", fake)
     r = advisor.advise("MC.PA", "fr", force=True)
     assert r["risk"]["volatility"] > 0 and "max_weight" in r["risk"] and r["reliability"]["level"] in ("reliable", "weak", "contrarian", "insufficient")
-    assert r["relative"]["benchmark"] == "CAC 40" and r["outlook"]["prob_outperform_adjusted"] == 55
+    assert r["relative"]["benchmark"] == "CAC 40" and r["ai_view"]["outlook"]["prob_outperform_adjusted"] == 55
     assert seen["effort"] == "medium" and "LOCAL QUANTITATIVE PRIOR" in seen["prompt"] and "RISK (computed)" in seen["prompt"]

@@ -22,7 +22,7 @@ const NAV: [View, typeof BarChart3][] = [['home', LayoutDashboard], ['analysis',
   ['companies', Building2], ['markets', Layers], ['portfolio', Briefcase]];
 
 export function App() {
-  const [lang, setLang] = useState<Lang>(() => read('stockpulse:lang', 'fr') as Lang);
+  const [lang, setLang] = useState<Lang>(() => { const l = read('stockpulse:lang', 'fr'); return (l === 'en' ? 'en' : 'fr') as Lang; });
   const [dark, setDark] = useState(() => read('stockpulse:theme', 'dark') === 'dark');
   const [showSettings, setShowSettings] = useState(false);
   const [settingsVersion, setSettingsVersion] = useState(0);
@@ -76,7 +76,7 @@ export function App() {
               <Activity className={`w-4 h-4 ${health ? HEALTH_COLOR[health.overall] : 'muted'}`} />
             </button>
             <select className="input !w-auto !py-1.5 text-xs" value={lang} onChange={(e) => setLang(e.target.value as Lang)} aria-label={t.language}>
-              <option value="fr">🇫🇷 FR</option><option value="en">🇬🇧 EN</option><option value="es">🇪🇸 ES</option><option value="zh">🇨🇳 中文</option>
+              <option value="fr">🇫🇷 FR</option><option value="en">🇬🇧 EN</option>
             </select>
             <button className="btn !p-2" onClick={() => setDark(!dark)} aria-label={t.theme}>
               {dark ? <Sun className="w-4 h-4 text-amber-400" /> : <Moon className="w-4 h-4" />}

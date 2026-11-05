@@ -3,7 +3,7 @@ import os
 import sys
 import threading
 
-from fastapi import Body, FastAPI, HTTPException, Query
+from fastapi import Body, Depends, FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 from fastapi.responses import FileResponse
@@ -11,7 +11,7 @@ from fastapi.staticfiles import StaticFiles
 
 import catalog
 import store
-from services import (advisor, ai_pool, ai_store, alerts, ensemble, headlines, dividends, fundamentals, fx, health, history, importer, news, objectives, orders,
+from services import (accounts, advisor, insights, ai_pool, ai_store, alerts, ensemble, headlines, taxes, theses, dividends, fundamentals, fx, health, history, importer, news, objectives, orders,
                       portfolio, rebalance, scheduler, screener, yahoo)
 
 store.init()
@@ -19,7 +19,12 @@ threading.Thread(target=news.migrate, daemon=True).start()
 if not os.environ.get("STOCKPULSE_NO_SCHEDULER"):
     scheduler.start()
 
-app = FastAPI(title="StockPulse Backend", version="1.0.0")
+async def _select_account(account: str | None = Query(None, include_in_schema=False)):
+    """Compte de la requête (?account=) : lu par les services via accounts.current() ; PEA par défaut."""
+    accounts.use(account)
+
+
+app = FastAPI(title="StockPulse Backend", version="3.0.0", dependencies=[Depends(_select_account)])
 # API réservée à l'application : seule l'interface de développement Vite peut l'appeler depuis une autre origine,
 # et l'en-tête Host est vérifié (protection contre le « DNS rebinding » depuis un site web malveillant)
 app.add_middleware(CORSMiddleware, allow_origins=["http://127.0.0.1:5173", "http://localhost:5173"], allow_methods=["*"], allow_headers=["*"])
@@ -147,18 +152,22 @@ def get_advice_history(symbol: str):
 
 @app.get("/api/track-record")
 def track_record():
-    """Fiabilité moyenne des conseils (analyse locale rejouée sur 5 ans) sur toutes les valeurs analysées."""
+    """Fiabilité moyenne des conseils rejoués (face au MSCI World) sur toutes les valeurs analysées : avantage moyen
+    du verdict sur le taux de base, pondéré par le nombre d'achats / ventes rejoués."""
     agg = {}
     with store.connect() as conn:
         for (payload,) in conn.execute("SELECT payload FROM advice_cache"):
             tr = json.loads(payload).get("track_record") or {}
             for h, v in tr.items():
-                a = agg.setdefault(h, {"n": 0, "hits": 0, "symbols": 0})
-                if v["n"] and v["hit_rate"] is not None:
-                    a["n"] += v["n"]
-                    a["hits"] += v["hit_rate"] * v["n"] / 100
+                a = agg.setdefault(h, {"n": 0, "edge": 0.0, "symbols": 0, "reliable": 0})
+                k = (v.get("buy_n") or 0) + (v.get("sell_n") or 0)
+                if k and v.get("edge") is not None:
+                    a["n"] += k
+                    a["edge"] += v["edge"] * k
                     a["symbols"] += 1
-    return {h: {"symbols": a["symbols"], "n": a["n"], "hit_rate": round(a["hits"] / a["n"] * 100) if a["n"] else None} for h, a in agg.items()}
+                    a["reliable"] += v["edge"] >= insights.EDGE
+    return {h: {"symbols": a["symbols"], "n": a["n"], "edge": round(a["edge"] / a["n"], 1) if a["n"] else None, "reliable": a["reliable"]}
+            for h, a in agg.items()}
 
 
 @app.get("/api/alerts")
@@ -246,7 +255,77 @@ def get_portfolio():
 
 @app.get("/api/portfolio/analysis")
 def portfolio_analysis(period: str = "1y"):
-    return {"diversification": portfolio.diversification(portfolio.summary()), "benchmark": portfolio.benchmark(period)}
+    return {"diversification": portfolio.diversification(portfolio.summary())}
+
+
+@app.get("/api/accounts")
+def list_accounts():
+    out = []
+    for a in accounts.all_accounts():
+        info = accounts.get(a["id"])
+        out.append({**a, "label": info["label"], "ceiling": info["ceiling"], "ceiling_left": accounts.ceiling_left(a["id"]),
+                    "pea_rules": info["pea_rules"]})
+    return {"accounts": out, "types": {k: v["label"] for k, v in accounts.TYPES.items()}}
+
+
+@app.post("/api/accounts")
+def create_account(type: str = Body(...), name: str = Body("")):
+    try:
+        return accounts.create(type, name)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+
+
+@app.put("/api/accounts/{account_id}")
+def rename_account(account_id: str, name: str = Body(..., embed=True)):
+    try:
+        return accounts.rename(account_id, name)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+
+
+@app.delete("/api/accounts/{account_id}")
+def delete_account(account_id: str):
+    try:
+        accounts.delete(account_id)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    return {"ok": True}
+
+
+@app.get("/api/envelope/{symbol}")
+def envelope(symbol: str):
+    """Dans quelle enveloppe placer ce titre (PEA, PEA-PME, compte-titres) ?"""
+    return accounts.envelope(catalog.lookup(symbol), symbol.upper())
+
+
+@app.get("/api/taxes")
+def tax_rates():
+    return taxes.rates()
+
+
+@app.get("/api/theses")
+def list_theses():
+    return {"theses": theses.all_for(), "due": theses.due()}
+
+
+@app.get("/api/theses/{symbol}")
+def get_thesis(symbol: str):
+    return theses.get(symbol)
+
+
+@app.put("/api/theses/{symbol}")
+def save_thesis(symbol: str, thesis: str = Body(...), fair_value: float | None = Body(None), sell_if: str = Body("")):
+    try:
+        return theses.save(symbol, thesis, fair_value, sell_if)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+
+
+@app.delete("/api/theses/{symbol}")
+def delete_thesis(symbol: str):
+    theses.delete(symbol)
+    return {"ok": True}
 
 
 @app.get("/api/portfolio/movements")
@@ -359,10 +438,17 @@ def order_journal():
     return orders.journal()
 
 
+@app.get("/api/orders/fees")
+def get_order_fees():
+    return orders.fees_settings()
+
+
 @app.put("/api/orders/fees")
-def order_fees(pct: float = Body(...), minimum: float = Body(...)):
+def order_fees(pct: float = Body(...), minimum: float = Body(...), stops: bool | None = Body(None)):
     try:
         orders.set_fees(pct, minimum)
+        if stops is not None:
+            orders.set_stops(stops)
     except ValueError as e:
         raise HTTPException(400, str(e))
     return orders.fees_settings()

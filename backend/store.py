@@ -76,6 +76,13 @@ def init():
         mcols = [r[1] for r in conn.execute("PRAGMA table_info(pea_movements)")]
         if "fx" not in mcols:
             conn.execute("ALTER TABLE pea_movements ADD COLUMN fx REAL")
+        if "account" not in mcols:  # v3 : plusieurs comptes (PEA, CTO…) ; l'existant appartient au PEA
+            conn.execute("ALTER TABLE pea_movements ADD COLUMN account TEXT DEFAULT 'pea'")
+        if "account" not in [r[1] for r in conn.execute("PRAGMA table_info(orders_log)")]:
+            conn.execute("ALTER TABLE orders_log ADD COLUMN account TEXT DEFAULT 'pea'")
+        conn.execute("""CREATE TABLE IF NOT EXISTS theses (
+            id INTEGER PRIMARY KEY AUTOINCREMENT, account TEXT, symbol TEXT, thesis TEXT, fair_value REAL,
+            sell_if TEXT, created_at INTEGER, reviewed_at INTEGER, next_review TEXT, UNIQUE (account, symbol))""")
         if "ai_sentiment" not in cols:
             conn.execute("ALTER TABLE articles ADD COLUMN ai_sentiment TEXT")
         if _fresh_install:  # seule l'archive d'articles est partagée : PEA, favoris, clés et réglages propres à chaque machine
@@ -84,7 +91,7 @@ def init():
 
 
 PERSONAL_TABLES = ("favorites", "settings", "advice_cache", "holdings", "advice_history", "price_alerts",
-                   "notified", "orders_log", "pea_movements", "ai_analyses")
+                   "notified", "orders_log", "pea_movements", "ai_analyses", "theses")
 
 
 def get_setting(key: str, default: str = "") -> str:

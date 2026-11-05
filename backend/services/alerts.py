@@ -44,15 +44,11 @@ def events() -> list[dict]:
                 conn.execute("UPDATE price_alerts SET triggered_at = ? WHERE id = ?", (int(time.time()), a["id"]))
             out.append({"key": f"price:{a['id']}", "type": "price", "symbol": a["symbol"], "direction": a["direction"],
                         "threshold": a["price"], "price": p})
-    for s in held:
-        chg = (quotes.get(s) or {}).get("change_percent") or 0
-        if chg <= -5:
-            out.append({"key": f"drop:{s}:{today}", "type": "drop", "symbol": s, "change": chg})
-    with store.connect() as conn:
-        for s in _watched():
-            rows = conn.execute("SELECT day, verdict FROM advice_history WHERE symbol = ? ORDER BY day DESC LIMIT 2", (s,)).fetchall()
-            if len(rows) == 2 and rows[0][1] != rows[1][1]:
-                out.append({"key": f"verdict:{s}:{rows[0][0]}", "type": "verdict", "symbol": s, "old": rows[1][1], "new": rows[0][1]})
+    # Pas d'alerte sur les variations du jour ni sur les changements de verdict : une thèse long terme ne change pas
+    # d'une heure à l'autre. Seules restent les alertes de prix choisies par l'utilisateur et les revues de thèse.
+    from services import theses
+    for t in theses.due():
+        out.append({"key": f"thesis:{t['id']}:{t['next_review']}", "type": "thesis", "symbol": t["symbol"], "account": t["account"]})
     return out
 
 

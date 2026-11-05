@@ -1,6 +1,7 @@
 """Environnement de test isolé : dossier de données temporaire, aucun accès réseau (sources simulées)."""
 import math
 import os
+import time
 import sys
 import tempfile
 
@@ -59,6 +60,24 @@ def market(monkeypatch):
     monkeypatch.setattr(yahoo, "daily_history", lambda s, years=10: make_hist(shocks={300: -0.12, 700: 0.1, 1100: -0.15}))
     monkeypatch.setattr(yahoo, "history", lambda s, p="1y", ttl=60: make_hist(260))
     monkeypatch.setattr(yahoo, "dividend_yield", lambda s, p: 3.5)
-    from services import news
+    from services import financials, news
     monkeypatch.setattr(news, "refresh", lambda *a, **k: None)
-    return {"prices": prices, "currency": currency, "changes": changes}
+    fin = {}  # comptes simulés par valeur (aucun par défaut : pas d'accès réseau)
+    monkeypatch.setattr(financials, "raw", lambda s, fetch=True: fin.get(s.upper()))
+    return {"prices": prices, "currency": currency, "changes": changes, "fin": fin}
+
+
+def make_fin(start_year=2016, years=4, revenue=1000.0, growth=0.08, margin=0.2, fcf_margin=0.18, net_debt=200.0,
+             shares=100.0, eps_growth=None, dps=2.0, div_growth=0.05):
+    """Comptes annuels simulés au format de services.financials.raw (montants en millions)."""
+    annual = []
+    for i in range(years):
+        rev = revenue * (1 + growth) ** i
+        ni = rev * margin
+        annual.append({"date": f"{start_year + i}-12-31", "TotalRevenue": rev, "GrossProfit": rev * 0.5, "OperatingIncome": rev * margin * 1.3,
+                       "EBIT": rev * margin * 1.3, "EBITDA": rev * margin * 1.6, "NetIncome": ni, "DilutedEPS": ni / shares,
+                       "OrdinarySharesNumber": shares, "FreeCashFlow": rev * fcf_margin, "NetDebt": net_debt,
+                       "InvestedCapital": rev * 0.8, "InterestExpense": rev * 0.01, "TaxRateForCalcs": 0.25,
+                       "CashDividendsPaid": -dps * shares, "StockholdersEquity": rev})
+    divs = [[int(time.mktime((y, 6, 1, 0, 0, 0, 0, 0, 0))), dps * (1 + div_growth) ** (y - 2005)] for y in range(2005, start_year + years)]
+    return {"annual": annual, "dividends": divs, "fetched_at": int(time.time()), "v": 1}

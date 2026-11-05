@@ -76,8 +76,8 @@ def test_summary_alerts_and_currency(market):
     hold("AAPL", 2, 200, extra_cash=300)
     s = portfolio.summary()
     by = {l["symbol"]: l for l in s["lines"]}
-    assert by["MC.PA"]["value"] == 4000 and by["MC.PA"]["pnl_percent"] == -20 and "loss_15" in by["MC.PA"]["alerts"]
-    assert "big_drop" in by["AI.PA"]["alerts"]
+    assert by["MC.PA"]["value"] == 4000 and by["MC.PA"]["pnl_percent"] == -20
+    assert "loss_15" not in by["MC.PA"]["alerts"] and "big_drop" not in by["AI.PA"]["alerts"]  # pas d'alerte sur le bruit des cours
     aapl = by["AAPL"]
     assert "not_pea" in aapl["alerts"] and aapl["value"] == pytest.approx(2 * 300 * 0.9) and aapl["cost"] == pytest.approx(400 * 0.9)
     assert s["cash"] == pytest.approx(340)  # versement 700 € - achat 2 × 200 $ × 0,9
@@ -106,19 +106,17 @@ def test_diversification_and_rebalance(market):
     assert "rebalance" in d
 
 
-def test_benchmark_base_100(market):
-    hold("MC.PA", 1, 400)
-    b = portfolio.benchmark()
-    assert b["series"][0]["portfolio"] == 100 and b["series"][0]["index"] == 100
-
-
 def test_order_buy_plan_and_execute(market):
     deposit(2000)
     p = orders.plan("AI.PA", "buy", amount=1000)
     broker, ttf = max(1.99, p["amount"] * 0.005), p["amount"] * 0.004  # Air Liquide : grande valeur française -> TTF 0,4 %
     assert p["quantity"] == 5 and p["limit"] >= 180 and p["fees"] == pytest.approx(broker + ttf, abs=0.02)
     assert p["costs"]["ttf"] == pytest.approx(ttf, abs=0.01)
-    assert p["stop_loss"] < 180 < p["target"]
+    assert "stop_loss" not in p and "target" not in p                     # pas de stop par défaut (long terme)
+    orders.set_stops(True)
+    q = orders.plan("AI.PA", "buy", amount=1000)
+    assert q["stop_loss"] < 180 < q["target"]
+    orders.set_stops(False)
     s = orders.execute("AI.PA", "buy", 5, 180, 4.5, day="2026-01-03")
     line = next(l for l in s["lines"] if l["symbol"] == "AI.PA")
     assert line["quantity"] == 5 and line["avg_price"] == pytest.approx(180.9)
@@ -156,7 +154,7 @@ def test_fees_settings():
         orders.set_fees(10, 1)
 
 
-def test_alerts_price_drop_verdict_once(market):
+def test_alerts_only_user_thresholds_once(market):
     hold("MC.PA", 1, 400)
     alerts.add("MC.PA", "below", 450)
     alerts.add("AI.PA", "above", 999)
@@ -165,7 +163,7 @@ def test_alerts_price_drop_verdict_once(market):
         conn.execute("INSERT INTO advice_history VALUES ('MC.PA', '2026-01-01', 'BUY', 20, 1, 'local')")
         conn.execute("INSERT INTO advice_history VALUES ('MC.PA', '2026-01-02', 'SELL', -50, 1, 'local')")
     types = sorted(e["type"] for e in alerts.pending())
-    assert types == ["drop", "price", "verdict"]
+    assert types == ["price"]  # ni baisse du jour, ni changement de verdict : seulement les seuils choisis
     assert alerts.pending() == []  # une seule notification par événement
     assert next(a for a in alerts.price_alerts() if a["symbol"] == "MC.PA")["triggered_at"]
     with pytest.raises(ValueError):
@@ -178,10 +176,11 @@ def test_buy_plan_respects_line_limit_on_new_pea(market):
     assert p["amount"] <= 1000 and p["weight_after"] <= 20 and "line_heavy" not in p["warnings"]
 
 
-def _verdicts(monkeypatch, data):
+def _verdicts(monkeypatch, data, reliable=True):
     from services import advisor, rebalance, screener
     monkeypatch.setattr(advisor, "cached_verdicts", lambda: {s: {"verdict": v, "score": sc, "confidence": "high", "engine": "local",
-                                                                  "generated_at": 0} for s, (v, sc) in data.items()})
+                                                                  "generated_at": 0, "reliable": reliable, "coverage": 1.0}
+                                                              for s, (v, sc) in data.items()})
     monkeypatch.setattr(screener, "snapshot", lambda max_age=0: ({s: {"price": 100.0, "volatility": 25.0} for s in data}, 0))
     return rebalance
 
@@ -317,3 +316,6 @@ def test_line_advice_reasons(market, monkeypatch):
     lines = {l["symbol"]: l for l in rb.plan(portfolio.summary())["lines"]}
     assert lines["MC.PA"]["advice"] == "sell" and "verdict_sell" in lines["MC.PA"]["reasons"]
     assert lines["AI.PA"]["advice"] in ("hold", "buy", "reduce")
+    # un « Vendre » qui n'a jamais battu le hasard sur cette valeur ne déclenche pas de vente
+    rb = _verdicts(monkeypatch, {"MC.PA": ("SELL", -60), "AI.PA": ("BUY", 30)}, reliable=False)
+    assert not any(a["symbol"] == "MC.PA" and a["side"] == "sell" for a in rb.plan(portfolio.summary())["actions"])

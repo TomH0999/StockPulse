@@ -48,7 +48,11 @@ export function OrderModal({ symbol, side, onClose, initialAmount, initialQuanti
         {error && <p className="text-sm down">{error}</p>}
         {plan && (
           <>
-            <div className="flex items-center gap-2 text-sm"><span className="font-semibold">{plan.name}</span><VerdictBadge advice={plan.advice} /></div>
+            <div className="flex items-center gap-2 text-sm"><span className="font-semibold">{plan.name}</span><VerdictBadge advice={plan.advice} />
+              {plan.account && <span className="ml-auto text-xs px-2 py-0.5 rounded bg-sky-500/10 text-sky-600 dark:text-sky-400">{plan.account.name}</span>}</div>
+            {plan.envelope && plan.account && side === 'buy' && (
+              <p className="text-xs muted">{t.envelopeBest} <b>{plan.envelope.label}</b>{plan.envelope.reasons.map((r) => ` ${t[`env_${r}` as 'env_pea_eligible'] ?? ''}`).join('')}</p>
+            )}
             {plan.warnings.map((w) => <p key={w} className="text-sm text-amber-600 dark:text-amber-400">⚠ {t[`ow_${w}` as 'ow_not_pea'] ?? w}</p>)}
             {side === 'buy' && (
               <div className="flex gap-2 items-end">

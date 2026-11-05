@@ -49,7 +49,7 @@ def test_portfolio_and_orders_api(market):
     assert client.put("/api/orders/fees", json={"pct": 50, "minimum": 1}).status_code == 400
     mv(type="buy", day="2026-01-04", symbol="MC.PA", quantity=1, price=400)
     a = client.get("/api/portfolio/analysis").json()
-    assert "diversification" in a and a["benchmark"]["series"]
+    assert "diversification" in a and "benchmark" not in a  # ancien « portefeuille actuel rejoué » retiré (biais rétrospectif)
     moves = client.get("/api/portfolio/movements").json()
     assert [m["type"] for m in moves] == ["deposit", "buy", "buy", "sell"]  # ordre chronologique (vente datée du jour)
     assert client.delete(f"/api/portfolio/movements/{moves[0]['id']}").status_code == 400  # finance les achats
@@ -71,7 +71,7 @@ def test_advice_endpoints(market):
     assert r["engine"] == "local"  # l'IA n'est utilisée que sur demande (ai=true)
     assert r["verdict"] and r["track_record"]
     assert client.get("/api/advice/MC.PA/history").json()[0]["verdict"] == r["verdict"]
-    assert client.get("/api/track-record").json()["6m"]["symbols"] == 1
+    assert set(client.get("/api/track-record").json()) <= {"1y", "3y", "5y"}
     assert client.get("/api/advice/NOPE").status_code == 404
 
 

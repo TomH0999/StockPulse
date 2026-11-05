@@ -16,26 +16,25 @@ Feuille de route : [ROADMAP.md](ROADMAP.md)
 
 ## Fonctionnalités
 
-- **Tableau de bord** (accueil) : PEA, alertes, état de l'application, opportunités PEA, mouvements du jour, favoris.
-- **Mon PEA** : diversification, rééquilibrage par allocation cible avec ordres prêts à passer, comparaison au CAC 40, lignes détenues, valeur et plus-value en direct, poids, conseil et alertes par ligne, plafond de versements.
-- **Vérificateur d'état** au lancement (cours, sources, clés IA, base, fraîcheur, version) avec notification Windows si un contrôle se dégrade ;
-  contrôle anti-hallucination des analyses IA (chiffres cités confrontés aux données, cohérence du verdict).
-- **Sécurité** : clés IA chiffrées (Windows DPAPI), API locale réservée à l'application, empreinte SHA-256 publiée, mises à jour automatiques.
+Pensé pour l'investisseur de long terme (10 à 30 ans) : comprendre des entreprises et tenir une discipline, pas suivre les cours.
 
-- **Favoris** : épingler des actions (☆), cours et verdict en un coup d'œil, réorganisation par glisser-déposer.
-- **Recherche** sur tous les marchés (actions, ETF, indices) par nom ou ticker.
-- **Graphique** de 1 jour à l'historique complet, repère de la date d'un article.
-- **Conseil** Achat fort / Achat / Conserver / Alléger / Vendre avec opportunités, menaces, patterns historiques
-  (réaction de l'action après ses chocs passés, saisonnalité, tendance) et rebondissements majeurs reliés aux articles.
-  Moteur local sans clé ; analyse IA de chaque article avec une clé gratuite Google Gemini ou Groq (Paramètres ⚙).
-- **Fiabilité des conseils** : analyse rejouée sur 5 ans, taux de réussite affiché ; **alertes** de prix et de changement de conseil.
-- **Classement** : plus fortes hausses / baisses (jour, semaine, mois, 3 mois, depuis janvier, 1 an), meilleur score
-  d'achat, achats les plus fiables, qualité en solde, moins volatiles, plus à risque, prix ; filtre PEA et pays.
-- **Entreprises** : liste complète du catalogue avec tri, recherche, filtres et aperçu (mini-graphique, performances, conseil).
-- **Analyses automatiques** : tout le catalogue est analysé en arrière-plan (local), puis par IA selon la capacité des clés.
-- **Archive d'actualités** (Yahoo Finance + Google News, 24 mois reconstitués) : filtres mots-clés, source, sentiment,
-  année / mois / jour, tri par date, pertinence, couverture médiatique ou sentiment.
-- 4 langues (FR, EN, ES, 中文), thème clair / sombre.
+- **Conseil long terme** : fondamentaux et valorisation (60 pts : rendement du free cash-flow, PER face à l'historique de la
+  société, VE/EBIT, dette nette/EBITDA, croissance), qualité et régularité (25 pts : ROIC, régularité des marges, dilution,
+  historique du dividende), tendance de fond (15 pts : moyenne 200 jours). Seuils propres aux banques, assurances et foncières.
+  Comptes publiés récupérés **sans clé**, y compris pour les valeurs européennes (4 derniers exercices).
+- **Fiabilité honnête** : le moteur affiché est rejoué chaque mois (avec les seuls comptes publiés à la date) et comparé à un ETF
+  MSCI World dividendes réinvestis à 1, 3 et 5 ans ; l'avantage est mesuré par rapport au taux de base. « Pas de signal fiable »
+  quand le conseil ne bat pas le hasard sur la valeur.
+- **L'IA explique, elle ne décide pas** : lecture séparée (avec contrôle des chiffres cités), analyses groupées, scénarios corrigés.
+- **Comptes** : PEA, PEA-PME (plafond commun 225 000 €), PEA jeune, compte-titres, assurance-vie ; fiscalité 2026 simulée
+  (prélèvements sociaux 18,6 %, PFU 31,4 %, moins-values reportables 10 ans), échéance des 5 ans, enveloppe conseillée par titre.
+- **Performance** : TRI (dates des versements comprises), rendement pondéré dans le temps et comparaison « si tout sur CW8 ».
+- **Journal de thèse** par ligne (thèse, valeur estimée, conditions de vente) avec revue annuelle.
+- **Diversification réelle** : exposition par pays et secteur à travers les ETF ; un ETF Monde n'est plus « une ligne trop lourde ».
+- **Ordres à cours limité** avec pas de cotation sûrs, frais, TTF et change ; stop facultatif (désactivé par défaut).
+- **Classements long terme** (qualité, free cash-flow, valorisation vs historique, ROIC, dividende, bilan), ETF & marchés,
+  onglet News, archive d'actualités, alertes de prix.
+- Français et anglais, thème clair / sombre ; données personnelles propres à chaque installation.
 
 ## Clés IA gratuites
 
@@ -67,7 +66,7 @@ chez votre courtier (ISIN, quantité, limite, validité, stop facultatif), puis 
 
 ## Tests
 
-`cd backend && pip install -r requirements-dev.txt && python -m pytest -q tests` (86 tests, sans réseau).
+`cd backend && pip install -r requirements-dev.txt && python -m pytest -q tests` (136 tests, sans réseau).
 
 ## Catalogue
 

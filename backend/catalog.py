@@ -21,8 +21,9 @@ SUFFIXES = {
     "OL": ("NO", True), "VI": ("AT", True), "WA": ("PL", True), "L": ("GB", False), "SW": ("CH", False), "HK": ("HK", False),
     "T": ("JP", False), "KS": ("KR", False), "TW": ("TW", False), "TO": ("CA", False), "AX": ("AU", False),
 }
-# PEA : sociétés dont le siège est dans l'Union européenne ou l'Espace économique européen (préfixe ISIN)
-EEA = set("AT BE BG HR CY CZ DK EE FI FR DE GR HU IE IT LV LT LU MT NL PL PT RO SK SI ES SE IS LI NO".split())
+# PEA : sociétés dont le siège est dans l'Union européenne, ou dans un État de l'EEE ayant signé avec la France une
+# convention fiscale d'assistance administrative (Norvège, Islande). Liechtenstein exclu par prudence (à vérifier).
+EEA = set("AT BE BG HR CY CZ DK EE FI FR DE GR HU IE IT LV LT LU MT NL PL PT RO SK SI ES SE IS NO".split())
 
 # Type d'instrument : nom du fichier du catalogue (les autres fichiers sont des actions)
 KINDS = ("etf", "index", "commodity", "fx", "crypto")
@@ -38,8 +39,11 @@ def _make(e: dict, market: str) -> dict:
     isin = e.get("isin")
     if isin:
         country, pea = isin[:2], isin[:2] in EEA
+    from services.etf_exposure import is_leveraged  # import tardif (module sans dépendance)
     return {"symbol": sym, "name": e["name"], "market": market, "country": e.get("country", country),
-            "pea": e.get("pea", pea), "sector": e.get("sector"), "isin": isin, "core": bool(e.get("core")), "status": None, "kind": kind}
+            "pea": e.get("pea", pea), "sector": e.get("sector"), "isin": isin, "core": bool(e.get("core")), "status": None, "kind": kind,
+            "pea_source": "isin" if isin else ("manual" if "pea" in e else "listing"),  # « listing » : siège à confirmer
+            "leveraged": kind == "etf" and is_leveraged(e["name"])}
 
 
 def _updates() -> dict:

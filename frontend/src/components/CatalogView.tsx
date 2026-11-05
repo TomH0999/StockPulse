@@ -105,7 +105,8 @@ export function CatalogView({ onOpen, kinds = ['stock'] }: { onOpen: (symbol: st
                     <td className="px-3 py-2">
                       <div className="flex items-center gap-2">
                         <span className="font-mono font-bold">{r.symbol}</span>
-                        {r.pea && <span className="text-[9px] px-1 rounded bg-sky-500/15 text-sky-600 dark:text-sky-400 font-bold">PEA</span>}
+                        {r.pea && <span title={r.pea_source === 'listing' ? t.env_pea_to_confirm : undefined} className="text-[9px] px-1 rounded bg-sky-500/15 text-sky-600 dark:text-sky-400 font-bold">PEA{r.pea_source === 'listing' ? ' ?' : ''}</span>}
+                        {r.leveraged && <span className="text-[9px] px-1 rounded bg-rose-500/15 text-rose-600 dark:text-rose-400 font-bold">{t.alert_leveraged}</span>}
                         <StatusBadge status={r.status} isNew={r.new} />
                         <span className="text-[10px] muted">{r.country}{r.sector && ` · ${r.sector}`}</span>
                       </div>

@@ -112,7 +112,9 @@ def _run(job: dict, sym: str, n: int, lang: str):
         quote = yahoo.quote(sym)
         news.refresh(sym, quote.get("name", ""), backfill=False)
         hist, arts = yahoo.daily_history(sym), news.articles(sym)
-        base = advisor.local_advice(sym, lang, quote, hist, arts)
+        info = advisor.catalog.lookup(sym) or {}
+        fin = advisor.financials.metrics(advisor.financials.raw(sym), quote.get("price"), info.get("sector"), hist, currency=quote.get("currency"))
+        base = advisor.local_advice(sym, lang, quote, hist, arts, fin=fin, kind=info.get("kind", "stock"), leveraged=bool(info.get("leveraged")))
         try:
             pea = portfolio.context(sym)
         except Exception:

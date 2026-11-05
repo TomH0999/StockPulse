@@ -6,7 +6,7 @@ import catalog
 import store
 from services import advisor, ai_pool, portfolio, screener
 
-LOCAL_MAX_AGE = 6 * 3600
+LOCAL_MAX_AGE = 24 * 3600  # verdict long terme : une mise à jour par jour suffit (comptes, cours de clôture)
 status = {"local_done": 0, "last_error": None}
 
 

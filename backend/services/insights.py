@@ -11,8 +11,8 @@ import time
 
 import store
 
-RELIABLE_HIT = 55       # % de conseils justes à 6 mois au-delà duquel le signal est jugé fiable
-MIN_SAMPLES = 20        # nombre minimal de conseils rejoués pour juger
+EDGE = 5                # points d'avantage sur le taux de base (face au MSCI World) au-delà desquels le signal est jugé fiable
+MIN_SAMPLES = 10        # nombre minimal d'achats / ventes rejoués pour juger
 MAX_LINE = 20.0         # plafond d'une ligne dans le PEA (%)
 REFERENCE_VOL = 20.0    # volatilité d'un grand indice actions (%) : une valeur deux fois plus volatile = ligne deux fois plus petite
 EU_SUFFIXES = (".DE", ".AS", ".MI", ".MC", ".BR", ".LS", ".IR", ".HE", ".VI", ".ST", ".CO", ".OL", ".WA", ".F", ".SW", ".L")
@@ -110,55 +110,64 @@ def relative(sym: str, hist, bench_hist, sector: str | None, snapshot: dict) -> 
     return out
 
 
-def live_record(sym: str, hist) -> dict:
-    """Conseils réellement émis dans l'app (un par jour) comparés à l'évolution réelle du cours ensuite."""
+def live_record(sym: str, hist, world=None) -> dict:
+    """Conseils réellement émis dans l'app (un par jour), comparés ensuite au MSCI World dividendes réinvestis (CW8) :
+    un achat est juste s'il a fait mieux, une vente ou un allègement s'il a fait moins bien."""
     with store.connect() as conn:
         rows = conn.execute("SELECT day, verdict, price FROM advice_history WHERE symbol = ? AND price > 0", (sym.upper(),)).fetchall()
-    if not rows or not hist:
-        return {"n": 0}
+    if not rows or not hist or not world:
+        return {"n": len(rows) if rows else 0}
     days, closes = sorted(_closes_by_day(hist)), _closes_by_day(hist)
+    wdays, wcloses = sorted(_closes_by_day(world)), _closes_by_day(world)
     last_day = days[-1]
     out = {}
-    for label, d in (("1m", 30), ("3m", 91), ("6m", 182)):
+    for label, d in (("3m", 91), ("6m", 182), ("1y", 365)):
         n = hits = 0
         for day, verdict, price in rows:
+            if verdict not in ("BUY", "STRONG_BUY", "SELL", "REDUCE"):
+                continue
             start = int(time.mktime(time.strptime(day, "%Y-%m-%d")) // 86400)
             if start + d > last_day:
                 continue
-            later = _at(days, closes, start + d)
-            if not later:
+            later, w0, w1 = _at(days, closes, start + d), _at(wdays, wcloses, start), _at(wdays, wcloses, start + d)
+            if not later or not w0 or not w1:
                 continue
-            ret = (later / price - 1) * 100
+            excess = (later / price) - (w1 / w0)
             n += 1
-            hits += (ret > 0) if verdict in ("BUY", "STRONG_BUY") else (ret < 0) if verdict in ("SELL", "REDUCE") else abs(ret) < 10
+            hits += excess > 0 if verdict in ("BUY", "STRONG_BUY") else excess < 0
         out[label] = {"n": n, "hit_rate": round(hits / n * 100) if n else None}
     out["n"] = len(rows)
     return out
 
 
 def reliability(track: dict | None, live: dict | None, risk_info: dict) -> dict:
-    """Le conseil n'est un signal que si ses verdicts passés battent nettement le hasard ; sinon on le dit."""
-    t6 = (track or {}).get("6m") or {}
-    l6 = (live or {}).get("6m") or {}
+    """Le verdict n'est présenté comme un signal que s'il a battu le hasard face au MSCI World : avantage (taux de
+    réussite moins taux de base) d'au moins EDGE points sur les conseils rejoués à 1 an, conseils réels comptés double."""
+    t = (track or {}).get("1y") or {}
+    l1 = (live or {}).get("1y") or {}
     reasons = []
-    if (t6.get("n") or 0) < MIN_SAMPLES:
+    decided = (t.get("buy_n") or 0) + (t.get("sell_n") or 0)
+    if decided < MIN_SAMPLES or t.get("edge") is None:
         level = "insufficient"
         reasons.append("history_short")
     else:
-        hit = t6["hit_rate"]
-        if l6.get("n", 0) >= 10 and l6.get("hit_rate") is not None:
-            hit = (hit * t6["n"] + l6["hit_rate"] * l6["n"] * 2) / (t6["n"] + l6["n"] * 2)  # le réel compte double
+        edge = t["edge"]
+        if l1.get("n", 0) >= 10 and l1.get("hit_rate") is not None:
+            live_edge = l1["hit_rate"] - 50
+            edge = (edge * decided + live_edge * l1["n"] * 2) / (decided + l1["n"] * 2)
             reasons.append("live_included")
-        level = "reliable" if hit >= RELIABLE_HIT else "weak" if hit >= 45 else "contrarian"
-        reasons.append(f"hit_{round(hit)}")
+        level = "reliable" if edge >= EDGE else "contrarian" if edge <= -10 else "weak"
+        reasons.append(f"edge_{round(edge)}")
+    if t.get("engine") == "trend_only":
+        reasons.append("trend_only")
     if risk_info.get("level") == "very_high":
         reasons.append("very_volatile")
-    return {"level": level, "signal": level == "reliable", "reasons": reasons, "threshold": RELIABLE_HIT}
+    return {"level": level, "signal": level == "reliable", "reasons": reasons, "threshold": EDGE}
 
 
-def health(f: dict | None) -> dict | None:
-    """Notation de 0 à 100 par critère (rentabilité, croissance, solidité, valorisation) à partir des chiffres disponibles."""
-    if not f:
+def health(m: dict | None) -> dict | None:
+    """Notes de 0 à 100 par critère, à partir des comptes : rentabilité, croissance, solidité, valorisation, régularité."""
+    if not m or not m.get("years"):
         return None
     def band(v, lo, hi, reverse=False):
         if v is None:
@@ -166,11 +175,15 @@ def health(f: dict | None) -> dict | None:
         x = (v - lo) / (hi - lo)
         x = 1 - x if reverse else x
         return round(max(0.0, min(1.0, x)) * 100)
+    fin = m.get("financial_sector")
+    pe_rel = m["pe"] / m["pe_history_median"] if m.get("pe") and m.get("pe_history_median") else None
     scores = {
-        "profitability": _avg(band(f.get("net_margin"), 0, 20), band(f.get("roe"), 0, 25), band(f.get("operating_margin"), 0, 25)),
-        "growth": _avg(band(f.get("revenue_growth"), -5, 15), band(f.get("earnings_growth"), -10, 20)),
-        "solidity": band(f.get("debt_to_equity"), 0.3, 2.5, reverse=True),
-        "valuation": None if f.get("pe") is None else 0 if f["pe"] <= 0 else band(f["pe"], 10, 40, reverse=True),
+        "profitability": band(m.get("roe_avg"), 4, 18) if fin else _avg(band(m.get("roic_avg"), 4, 20), band(m.get("operating_margin"), 0, 25)),
+        "growth": _avg(band(m.get("revenue_cagr"), -5, 12), band(m.get("eps_cagr"), -10, 15)),
+        "solidity": None if fin else _avg(band(m.get("net_debt_ebitda"), 0, 4, reverse=True), band(m.get("interest_coverage"), 2, 15)),
+        "valuation": 0 if m.get("pe_loss") else _avg(band(m.get("fcf_yield"), 1, 8) if not fin else None,
+                                                     band(pe_rel, 0.7, 1.4, reverse=True) if pe_rel else None),
+        "regularity": _avg(band(m.get("op_margin_std"), 1, 8, reverse=True), band((m.get("dividends") or {}).get("years_without_cut"), 0, 15)),
     }
     known = [v for v in scores.values() if v is not None]
     return {**scores, "overall": round(sum(known) / len(known)) if known else None, "criteria": len(known)}

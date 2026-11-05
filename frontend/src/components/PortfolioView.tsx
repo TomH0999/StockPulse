@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Briefcase } from 'lucide-react';
+import { Briefcase, NotebookPen } from 'lucide-react';
 import { api, money, onPortfolioChanged, pct, Portfolio, PortfolioLine } from '../services/api';
 import { fill } from '../i18n';
 import { emptyMove, JournalPanel, MoveForm } from './JournalPanel';
@@ -8,6 +8,8 @@ import { ObjectivesPanel } from './ObjectivesPanel';
 import { useI18n } from '../context';
 import { VerdictBadge } from './VerdictBadge';
 import { PortfolioAnalysisPanel } from './PortfolioAnalysisPanel';
+import { AccountBar } from './AccountBar';
+import { ThesisEditor } from './ThesisEditor';
 
 export function usePortfolio() {
   const [data, setData] = useState<Portfolio | null>(null);
@@ -40,6 +42,7 @@ export function PortfolioView({ onOpen }: { onOpen: (symbol: string) => void }) 
   const [data] = usePortfolio();
   const [tab, setTab] = useState<'overview' | 'performance' | 'journal' | 'objectives'>('overview');
   const [form, setForm] = useState<MoveForm>(emptyMove());
+  const [thesisFor, setThesisFor] = useState<PortfolioLine | null>(null);
   const trade = (type: 'buy' | 'sell', l: PortfolioLine) => {
     setForm({ ...emptyMove(type, l.symbol), quantity: type === 'sell' ? String(l.quantity) : '' });
     setTab('journal');
@@ -55,29 +58,40 @@ export function PortfolioView({ onOpen }: { onOpen: (symbol: string) => void }) 
   return (
     <div className="space-y-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-2xl font-bold flex items-center gap-2"><Briefcase className="w-6 h-6 text-sky-500" />{t.pfTitle}</h1>
+        <h1 className="text-2xl font-bold flex items-center gap-2"><Briefcase className="w-6 h-6 text-sky-500" />{data?.account?.name ?? t.pfTitle}
+          {data?.account && <span className="text-sm muted font-normal">{data.account.label}</span>}</h1>
         <div className="flex gap-1 p-1 rounded-lg border border-slate-200 dark:border-slate-800">
           {TABS.map(([k, label]) => (
             <button key={k} onClick={() => setTab(k)} className={`px-3 py-1.5 text-sm rounded-md cursor-pointer ${tab === k ? 'bg-sky-600 text-white' : 'muted hover:text-sky-500'}`}>{label}</button>
           ))}
         </div>
       </div>
+      <AccountBar />
       {data && (
-        <div className="grid grid-cols-2 lg:grid-cols-4 xl:grid-cols-7 gap-4">
+        <div className="grid grid-cols-2 lg:grid-cols-4 xl:grid-cols-8 gap-4">
           {card(t.pfTotal, money(data.total, lang), data.performance !== null && <span className={up(data.gain)}>{money(data.gain, lang)} ({pct(data.performance)})</span>)}
           {card(t.pfValue, money(data.value, lang), <span className={up(data.day_change)}>{t.pfDay} : {money(data.day_change, lang)}</span>)}
           {card(t.pfCash, money(data.cash, lang), <span className="muted">{t.pfCashAuto}</span>)}
           {card(t.pfPnl, <span className={up(data.pnl)}>{money(data.pnl, lang)}</span>, <span className={up(data.pnl)}>{pct(data.pnl_percent)}</span>)}
           {card(t.pfRealized, <span className={up(data.realized)}>{money(data.realized, lang)}</span>, <span className="muted">{t.pfDividends} : {money(data.dividends, lang)}</span>)}
-          {card(t.pfCeiling, `${money(data.deposits, lang)}`,
-            <><span className="muted">{t.pfCeilingLeft} : {money(data.ceiling_left, lang)}</span>
+          {card(t.xirrTitle, data.xirr != null ? pct(data.xirr) : '–', <span className="muted">{t.xirrSub}</span>)}
+          {card(t.worldTitle, data.world?.value != null ? money(data.world.value, lang) : '–',
+            data.world?.difference != null && <span className={up(data.world.difference)}>{t.worldDiff} {money(data.world.difference, lang)}
+              {data.world.xirr != null && <span className="muted"> · {pct(data.world.xirr)}/{t.perYear}</span>}</span>)}
+          {data.ceiling != null && card(t.pfCeiling, `${money(data.deposits, lang)}`,
+            <><span className="muted">{t.pfCeilingLeft} : {money(data.ceiling_left ?? 0, lang)}</span>
               <div className="h-1.5 rounded-full bg-slate-200 dark:bg-slate-800 mt-1"><div className="h-full rounded-full bg-sky-600" style={{ width: `${Math.min(100, (data.deposits / data.ceiling) * 100)}%` }} /></div></>)}
-          {card(t.fiveYears, data.opened ? (data.mature ? '✓' : new Date(data.five_years!).toLocaleDateString(lang)) : '–',
+          {data.account?.pea_rules && card(t.fiveYears, data.opened ? (data.mature ? '✓' : new Date(data.five_years!).toLocaleDateString(lang)) : '–',
             data.opened ? <span className="muted">{data.mature ? t.fiveYearsDone : fill(t.fiveYearsLeft, { d: data.days_to_five_years })}
-              {data.tax_if_withdrawn !== null && <><br />{t.taxIfWithdrawn} : {money(data.tax_if_withdrawn, lang)}</>}</span>
+              {data.tax_if_withdrawn !== null && <><br />{t.taxIfWithdrawn} : {money(data.tax_if_withdrawn, lang)} ({data.tax_rate} %)</>}</span>
               : <button className="text-sky-600 dark:text-sky-400 hover:underline cursor-pointer" onClick={() => setTab('objectives')}>{t.objOpened} →</button>)}
+          {data.cto_tax && card(`${t.ctoTax} ${data.cto_tax.year}`, money(data.cto_tax.tax, lang),
+            <span className="muted">{t.ctoGains} {money(data.cto_tax.taxable_gains, lang)} · {t.pfDividends} {money(data.cto_tax.dividends, lang)}
+              {data.cto_tax.losses_carried.length > 0 && <><br />{t.ctoLosses} {money(data.cto_tax.losses_carried.reduce((x, l) => x + l.amount, 0), lang)}</>}</span>)}
+          {data.account?.type === 'AV' && data.tax_if_withdrawn !== null && card(t.taxIfWithdrawn, money(data.tax_if_withdrawn, lang), <span className="muted">{data.tax_rate} %</span>)}
         </div>
       )}
+      {data?.tax_source && <p className="text-[11px] muted">{t.taxSourceLabel} : {data.tax_source}. {t.taxVerify}</p>}
 
       {tab === 'overview' && (
         <>
@@ -109,6 +123,7 @@ export function PortfolioView({ onOpen }: { onOpen: (symbol: string) => void }) 
                     <td className="px-3 py-2 text-right"><VerdictBadge advice={l.advice} /></td>
                     <td className="px-3 py-2"><AlertTags line={l} /></td>
                     <td className="px-3 py-2 whitespace-nowrap text-right space-x-1">
+                      <button className="btn !px-2 !py-1" title={t.thesisTitle} onClick={() => setThesisFor(thesisFor?.symbol === l.symbol ? null : l)}><NotebookPen className="w-3.5 h-3.5" /></button>
                       <button className="btn !px-2 !py-1" onClick={() => trade('buy', l)}>{t.side_buy}</button>
                       <button className="btn !px-2 !py-1" onClick={() => trade('sell', l)}>{t.side_sell}</button>
                     </td>
@@ -117,6 +132,8 @@ export function PortfolioView({ onOpen }: { onOpen: (symbol: string) => void }) 
               </tbody>
             </table>
           </div>
+          {thesisFor && <div className="card p-4"><div className="font-bold mb-2">{thesisFor.symbol} · {thesisFor.name}</div>
+            <ThesisEditor symbol={thesisFor.symbol} price={thesisFor.price} /></div>}
           <PortfolioAnalysisPanel version={0} onOpen={onOpen} />
         </>
       )}

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { CartesianGrid, Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { api, money, onPortfolioChanged, pct } from '../services/api';
 import { useI18n } from '../context';
+import { fill } from '../i18n';
 
 const COLORS = ['#0ea5e9', '#94a3b8', '#a78bfa'];
 
@@ -23,9 +24,16 @@ export function PerformancePanel() {
         {!hist?.points.length ? <p className="text-sm muted">{hist ? t.histEmpty : t.loading}</p> : (
           <>
             <div className="flex flex-wrap gap-4 text-sm">
-              <span>{t.pfTitle} : <b className={(hist.performance ?? 0) >= 0 ? 'up' : 'down'}>{pct(hist.performance)}</b></span>
-              {Object.entries(hist.benchmark_performance ?? {}).map(([k, v]) => <span key={k}>{k} : <b>{pct(v)}</b></span>)}
+              <span>{t.twrLabel} : <b className={(hist.performance ?? 0) >= 0 ? 'up' : 'down'}>{pct(hist.performance)}</b></span>
+              {Object.entries(hist.benchmark_performance ?? {}).map(([k, v]) => <span key={k}>{k === 'MSCI World' ? t.worldBench : t.cacBench} : <b>{pct(v)}</b></span>)}
+              {hist.xirr != null && <span>{t.xirrTitle} : <b>{pct(hist.xirr)}</b>/{t.perYear}</span>}
             </div>
+            {hist.world?.value != null && (
+              <p className={`text-sm rounded-lg p-2 ${(hist.world.difference ?? 0) >= 0 ? 'bg-emerald-500/10' : 'bg-rose-500/10'}`}>
+                {fill(t.worldVerdict, { v: money(hist.world.value, lang), d: money(Math.abs(hist.world.difference ?? 0), lang),
+                  w: (hist.world.difference ?? 0) >= 0 ? t.worldBetter : t.worldWorse })}
+              </p>
+            )}
             <div className="h-72">
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={hist.points}>
@@ -35,7 +43,7 @@ export function PerformancePanel() {
                   <YAxis tick={{ fontSize: 10, fill: '#64748b' }} width={40} domain={['auto', 'auto']} />
                   <Tooltip contentStyle={{ background: '#0f172a', border: '1px solid #334155', borderRadius: 8, fontSize: 12, color: '#e2e8f0' }} />
                   <Legend wrapperStyle={{ fontSize: 11 }} />
-                  {series.map((k, i) => <Line key={k} dataKey={k} name={k === 'pea' ? t.pfTitle : k} stroke={COLORS[i]} dot={false} strokeWidth={k === 'pea' ? 2 : 1.5} isAnimationActive={false} connectNulls />)}
+                  {series.map((k, i) => <Line key={k} dataKey={k} name={k === 'pea' ? t.twrLabel : k === 'MSCI World' ? t.worldBench : t.cacBench} stroke={COLORS[i]} dot={false} strokeWidth={k === 'pea' ? 2 : 1.5} isAnimationActive={false} connectNulls />)}
                 </LineChart>
               </ResponsiveContainer>
             </div>

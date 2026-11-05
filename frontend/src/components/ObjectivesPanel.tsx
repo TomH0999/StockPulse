@@ -18,7 +18,7 @@ export function ObjectivesPanel({ portfolio }: { portfolio: Portfolio | null }) 
     <div><label className="label">{label}</label>
       <input className="input" inputMode="decimal" value={String(obj[k] ?? '')} onChange={(e) => set(k, e.target.value)} /></div>
   );
-  const months = portfolio && obj.monthly_deposit > 0 ? Math.ceil(portfolio.ceiling_left / obj.monthly_deposit) : null;
+  const months = portfolio && obj.monthly_deposit > 0 ? Math.ceil((portfolio.ceiling_left ?? 0) / obj.monthly_deposit) : null;
 
   return (
     <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">

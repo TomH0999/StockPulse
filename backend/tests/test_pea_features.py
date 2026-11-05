@@ -19,7 +19,7 @@ def test_update_movement_revalidates(market):
         portfolio.update_movement(dep["id"], amount=100)
 
 
-@pytest.mark.parametrize("years_ago,rate,mature", [(2, 0.30, False), (6, 0.172, True)])
+@pytest.mark.parametrize("years_ago,rate,mature", [(2, 31.4, False), (6, 18.6, True)])  # taux 2026 (LFSS 2026)
 def test_opening_date_and_tax(market, years_ago, rate, mature):
     opened = (date.today() - timedelta(days=365 * years_ago + 2)).isoformat()
     objectives.update({"opened": opened})
@@ -27,7 +27,7 @@ def test_opening_date_and_tax(market, years_ago, rate, mature):
     portfolio.add_movement("buy", "2026-01-03", "MC.PA", 2, 300)  # cours simulé 400 -> +200 €
     s = portfolio.summary()
     assert s["mature"] is mature and s["tax_rate"] == rate
-    assert s["tax_if_withdrawn"] == pytest.approx(200 * rate)
+    assert s["tax_if_withdrawn"] == pytest.approx(200 * rate / 100)
     assert (s["days_to_five_years"] > 0) is (not mature)
     objectives.update({"opened": None})
 
