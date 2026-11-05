@@ -1,0 +1,18 @@
+[
+{"symbol": "EURUSD=X", "name": "EUR/USD", "pea": false, "country": "—"},
+{"symbol": "EURGBP=X", "name": "EUR/GBP", "pea": false, "country": "—"},
+{"symbol": "EURCHF=X", "name": "EUR/CHF", "pea": false, "country": "—"},
+{"symbol": "EURJPY=X", "name": "EUR/JPY", "pea": false, "country": "—"},
+{"symbol": "EURCNY=X", "name": "EUR/CNY", "pea": false, "country": "—"},
+{"symbol": "EURCAD=X", "name": "EUR/CAD", "pea": false, "country": "—"},
+{"symbol": "EURAUD=X", "name": "EUR/AUD", "pea": false, "country": "—"},
+{"symbol": "EURSEK=X", "name": "EUR/SEK", "pea": false, "country": "—"},
+{"symbol": "EURNOK=X", "name": "EUR/NOK", "pea": false, "country": "—"},
+{"symbol": "EURDKK=X", "name": "EUR/DKK", "pea": false, "country": "—"},
+{"symbol": "EURPLN=X", "name": "EUR/PLN", "pea": false, "country": "—"},
+{"symbol": "GBPUSD=X", "name": "GBP/USD", "pea": false, "country": "—"},
+{"symbol": "USDJPY=X", "name": "USD/JPY", "pea": false, "country": "—"},
+{"symbol": "USDCHF=X", "name": "USD/CHF", "pea": false, "country": "—"},
+{"symbol": "USDCNY=X", "name": "USD/CNY", "pea": false, "country": "—"},
+{"symbol": "DX-Y.NYB", "name": "US Dollar Index", "pea": false, "country": "—"}
+]

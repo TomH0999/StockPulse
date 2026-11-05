@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Activity, BarChart3, Briefcase, Building2, LayoutDashboard, Moon, Settings, Sun, Trophy } from 'lucide-react';
+import { Activity, BarChart3, Briefcase, Building2, Layers, LayoutDashboard, Moon, Newspaper, Settings, Sun, Trophy } from 'lucide-react';
 import { DashboardView } from './components/DashboardView';
 import { SettingsModal } from './components/SettingsModal';
 import { LeaderboardView } from './components/LeaderboardView';
 import { CatalogView } from './components/CatalogView';
 import { HomeView } from './components/HomeView';
+import { NewsView } from './components/NewsView';
 import { PortfolioView } from './components/PortfolioView';
 import { HEALTH_COLOR, HealthList } from './components/HealthPanel';
 import { api, HealthReport } from './services/api';
@@ -16,8 +17,9 @@ import { X } from 'lucide-react';
 const read = (k: string, d: string) => { try { return localStorage.getItem(k) ?? d; } catch { return d; } };
 const write = (k: string, v: string) => { try { localStorage.setItem(k, v); } catch { /* stockage indisponible */ } };
 
-type View = 'home' | 'analysis' | 'leaderboard' | 'companies' | 'portfolio';
-const NAV: [View, typeof BarChart3][] = [['home', LayoutDashboard], ['analysis', BarChart3], ['leaderboard', Trophy], ['companies', Building2], ['portfolio', Briefcase]];
+type View = 'home' | 'analysis' | 'news' | 'leaderboard' | 'companies' | 'markets' | 'portfolio';
+const NAV: [View, typeof BarChart3][] = [['home', LayoutDashboard], ['analysis', BarChart3], ['news', Newspaper], ['leaderboard', Trophy],
+  ['companies', Building2], ['markets', Layers], ['portfolio', Briefcase]];
 
 export function App() {
   const [lang, setLang] = useState<Lang>(() => read('stockpulse:lang', 'fr') as Lang);
@@ -91,6 +93,8 @@ export function App() {
           {view === 'analysis' && <DashboardView symbol={symbol} onSelect={open} settingsVersion={settingsVersion} />}
           {view === 'leaderboard' && <LeaderboardView onOpen={open} />}
           {view === 'companies' && <CatalogView onOpen={open} />}
+          {view === 'markets' && <CatalogView key="markets" onOpen={open} kinds={['etf', 'index', 'commodity', 'fx', 'crypto']} />}
+          {view === 'news' && <NewsView onOpen={open} />}
         </main>
 
         <footer className="py-3 px-6 text-center text-xs muted border-t border-slate-200 dark:border-slate-800">{t.footer}</footer>

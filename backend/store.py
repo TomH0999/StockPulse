@@ -54,6 +54,11 @@ def init():
             CREATE TABLE IF NOT EXISTS price_alerts (
                 id INTEGER PRIMARY KEY AUTOINCREMENT, symbol TEXT, direction TEXT, price REAL, triggered_at INTEGER
             );
+            CREATE TABLE IF NOT EXISTS ai_analyses (
+                id INTEGER PRIMARY KEY AUTOINCREMENT, symbol TEXT, created_at INTEGER, kind TEXT, runs INTEGER,
+                verdict TEXT, score REAL, confidence TEXT, price REAL, currency TEXT, engine TEXT, lang TEXT, payload TEXT
+            );
+            CREATE INDEX IF NOT EXISTS ai_analyses_symbol ON ai_analyses (symbol, created_at);
             CREATE TABLE IF NOT EXISTS notified (key TEXT PRIMARY KEY, at INTEGER);
             CREATE TABLE IF NOT EXISTS orders_log (
                 id INTEGER PRIMARY KEY AUTOINCREMENT, symbol TEXT, side TEXT, quantity REAL, price REAL, fees REAL,
@@ -79,7 +84,7 @@ def init():
 
 
 PERSONAL_TABLES = ("favorites", "settings", "advice_cache", "holdings", "advice_history", "price_alerts",
-                   "notified", "orders_log", "pea_movements")
+                   "notified", "orders_log", "pea_movements", "ai_analyses")
 
 
 def get_setting(key: str, default: str = "") -> str:

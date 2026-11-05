@@ -27,7 +27,7 @@ def reset_state():
 
 
 def add_keys(monkeypatch, *providers):
-    monkeypatch.setattr(ai_pool, "_request", lambda e, p, max_tokens=4000: '{"ok": true}')
+    monkeypatch.setattr(ai_pool, "_request", lambda e, p, max_tokens=4000, **kw: '{"ok": true}')
     for i, p in enumerate(providers):
         ai_pool.add_key(p, f"key-{p}-{i}")
     return ai_pool.keys()
@@ -54,7 +54,7 @@ def test_rotation_on_rate_limit(monkeypatch):
     add_keys(monkeypatch, "groq", "cerebras")
     calls = []
 
-    def req(entry, prompt, max_tokens=4000):
+    def req(entry, prompt, max_tokens=4000, **kw):
         calls.append(entry["provider"])
         if entry["provider"] == "groq":
             raise ai_pool._RateLimited(30)
@@ -72,7 +72,7 @@ def test_no_capacity_and_auth_error(monkeypatch):
         ai_pool.complete_json("p")
     add_keys(monkeypatch, "groq")
 
-    def req(entry, prompt, max_tokens=4000):
+    def req(entry, prompt, max_tokens=4000, **kw):
         raise requests.HTTPError("401", response=Resp(401))
     monkeypatch.setattr(ai_pool, "_request", req)
     with pytest.raises(ai_pool.NoCapacity):
@@ -85,7 +85,7 @@ def test_waits_for_cooldown_within_max_wait(monkeypatch):
     add_keys(monkeypatch, "groq")
     k = ai_pool.keys()[0]
     ai_pool._state[k["id"]] = {"cooldown_until": time.time() + 0.5}
-    monkeypatch.setattr(ai_pool, "_request", lambda e, p, max_tokens=4000: 'text {"ok": 1} trailing')
+    monkeypatch.setattr(ai_pool, "_request", lambda e, p, max_tokens=4000, **kw: 'text {"ok": 1} trailing')
     assert ai_pool.complete_json("p", max_wait=5)[0] == {"ok": 1}
 
 
@@ -132,7 +132,7 @@ def test_openrouter_reset_header_in_ms():
 def test_background_budget_and_user_priority(monkeypatch):
     add_keys(monkeypatch, "openrouter")
     k = ai_pool.keys()[0]
-    monkeypatch.setattr(ai_pool, "_request", lambda e, p, max_tokens=4000: '{"ok": 1}')
+    monkeypatch.setattr(ai_pool, "_request", lambda e, p, max_tokens=4000, **kw: '{"ok": 1}')
     assert ai_pool.available_count(background=True) == 1
     ai_pool.complete_json("p")  # demande de l'utilisateur
     assert ai_pool.available_count(background=True) == 0  # l'arrière-plan s'efface
@@ -146,7 +146,7 @@ def test_background_budget_and_user_priority(monkeypatch):
 
 def test_usage_is_persisted(monkeypatch):
     add_keys(monkeypatch, "groq")
-    monkeypatch.setattr(ai_pool, "_request", lambda e, p, max_tokens=4000: '{"ok": 1}')
+    monkeypatch.setattr(ai_pool, "_request", lambda e, p, max_tokens=4000, **kw: '{"ok": 1}')
     ai_pool.complete_json("p")
     ai_pool._state.clear()
     ai_pool._restore()

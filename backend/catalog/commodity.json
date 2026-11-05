@@ -1,0 +1,20 @@
+[
+{"symbol": "GC=F", "name": "Gold Dec 26", "pea": false, "country": "—"},
+{"symbol": "SI=F", "name": "Silver Dec 26", "pea": false, "country": "—"},
+{"symbol": "PL=F", "name": "Platinum Jan 27", "pea": false, "country": "—"},
+{"symbol": "PA=F", "name": "Palladium Dec 26", "pea": false, "country": "—"},
+{"symbol": "HG=F", "name": "Copper Dec 26", "pea": false, "country": "—"},
+{"symbol": "CL=F", "name": "Crude Oil Dec 26", "pea": false, "country": "—"},
+{"symbol": "BZ=F", "name": "Brent Crude Oil Last Day Financial Futures", "pea": false, "country": "—"},
+{"symbol": "NG=F", "name": "Natural Gas Dec 26", "pea": false, "country": "—"},
+{"symbol": "RB=F", "name": "RBOB Gasoline Dec 26", "pea": false, "country": "—"},
+{"symbol": "HO=F", "name": "Heating Oil Dec 26", "pea": false, "country": "—"},
+{"symbol": "ZW=F", "name": "Chicago SRW Wheat Futures,Dec-2", "pea": false, "country": "—"},
+{"symbol": "ZC=F", "name": "Corn Futures,Dec-2026", "pea": false, "country": "—"},
+{"symbol": "ZS=F", "name": "Soybean Futures,Jan-2027", "pea": false, "country": "—"},
+{"symbol": "KC=F", "name": "Coffee Dec 26", "pea": false, "country": "—"},
+{"symbol": "CC=F", "name": "Cocoa Dec 26", "pea": false, "country": "—"},
+{"symbol": "SB=F", "name": "Sugar #11 Mar 27", "pea": false, "country": "—"},
+{"symbol": "LE=F", "name": "Live Cattle Futures,Dec-2026", "pea": false, "country": "—"},
+{"symbol": "ALI=F", "name": "Aluminum Futures,Jan-2027", "pea": false, "country": "—"}
+]

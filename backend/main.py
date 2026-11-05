@@ -11,7 +11,7 @@ from fastapi.staticfiles import StaticFiles
 
 import catalog
 import store
-from services import (advisor, ai_pool, alerts, dividends, fundamentals, fx, health, history, importer, news, objectives, orders,
+from services import (advisor, ai_pool, ai_store, alerts, ensemble, headlines, dividends, fundamentals, fx, health, history, importer, news, objectives, orders,
                       portfolio, rebalance, scheduler, screener, yahoo)
 
 store.init()
@@ -92,6 +92,52 @@ def get_advice(symbol: str, lang: str = "fr", refresh: bool = False, ai: bool = 
     if store.get_setting("ui_lang") != lang:
         store.set_setting("ui_lang", lang)
     return _yahoo(advisor.advise, symbol, lang, refresh, ai)
+
+
+@app.get("/api/advice/{symbol}/saved")
+def saved_analyses(symbol: str):
+    """Analyses IA enregistrées (simples et groupées), avec indice de renouvellement."""
+    try:
+        price = yahoo.quote(symbol)["price"]
+    except Exception:
+        price = None
+    return ai_store.list_for(symbol, price)
+
+
+@app.delete("/api/advice/saved/{analysis_id}")
+def delete_saved_analysis(analysis_id: int):
+    ai_store.delete(analysis_id)
+    return {"ok": True}
+
+
+@app.post("/api/advice/{symbol}/ensemble")
+def start_ensemble(symbol: str, runs: int = Body(..., embed=True), lang: str = Body("fr", embed=True)):
+    try:
+        return ensemble.start(symbol, runs, lang)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+
+
+@app.get("/api/ensemble/{job_id}")
+def ensemble_status(job_id: str):
+    try:
+        return ensemble.status(job_id)
+    except KeyError:
+        raise HTTPException(404, "Analyse groupée inconnue")
+
+
+@app.delete("/api/ensemble/{job_id}")
+def ensemble_cancel(job_id: str):
+    ensemble.cancel(job_id)
+    return {"ok": True}
+
+
+@app.get("/api/news/top")
+def top_news(period: str = "day", year: int | None = None, month: int | None = None):
+    try:
+        return headlines.report(period, year, month)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
 
 
 @app.get("/api/advice/{symbol}/history")

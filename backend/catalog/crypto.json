@@ -1,0 +1,18 @@
+[
+{"symbol": "BTC-EUR", "name": "Bitcoin EUR", "pea": false, "country": "—"},
+{"symbol": "ETH-EUR", "name": "Ethereum EUR", "pea": false, "country": "—"},
+{"symbol": "SOL-EUR", "name": "Solana EUR", "pea": false, "country": "—"},
+{"symbol": "XRP-EUR", "name": "XRP EUR", "pea": false, "country": "—"},
+{"symbol": "BNB-EUR", "name": "BNB EUR", "pea": false, "country": "—"},
+{"symbol": "ADA-EUR", "name": "Cardano EUR", "pea": false, "country": "—"},
+{"symbol": "DOGE-EUR", "name": "Dogecoin EUR", "pea": false, "country": "—"},
+{"symbol": "TRX-EUR", "name": "TRON EUR", "pea": false, "country": "—"},
+{"symbol": "AVAX-EUR", "name": "Avalanche EUR", "pea": false, "country": "—"},
+{"symbol": "LINK-EUR", "name": "Chainlink EUR", "pea": false, "country": "—"},
+{"symbol": "DOT-EUR", "name": "Polkadot EUR", "pea": false, "country": "—"},
+{"symbol": "LTC-EUR", "name": "Litecoin EUR", "pea": false, "country": "—"},
+{"symbol": "BTC-USD", "name": "Bitcoin USD", "pea": false, "country": "—"},
+{"symbol": "ETH-USD", "name": "Ethereum USD", "pea": false, "country": "—"},
+{"symbol": "USDT-USD", "name": "Tether USDt USD", "pea": false, "country": "—"},
+{"symbol": "USDC-USD", "name": "USDC USD", "pea": false, "country": "—"}
+]

@@ -1,6 +1,6 @@
 import { Fragment, useEffect, useMemo, useState } from 'react';
-import { Building2, Search, Star } from 'lucide-react';
-import { api, pct, priceWithEur, ScreenerRow } from '../services/api';
+import { Building2, Layers, Search, Star } from 'lucide-react';
+import { api, InstrumentKind, pct, priceWithEur, ScreenerRow } from '../services/api';
 import { useI18n, VERDICT_LABEL } from '../context';
 import { useScreener } from '../hooks/useScreener';
 import { Sparkline } from './Sparkline';
@@ -11,9 +11,14 @@ type Col = 'name' | 'price' | 'chg_1d' | 'chg_1m' | 'chg_ytd' | 'chg_1y' | 'vola
 const COLS: Col[] = ['name', 'price', 'chg_1d', 'chg_1m', 'chg_ytd', 'chg_1y', 'volatility', 'from_high', 'score'];
 const fold = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
 
-export function CatalogView({ onOpen }: { onOpen: (symbol: string) => void }) {
+/** Liste des entreprises (kinds = ['stock']) ou page « ETF & marchés » (autres types, avec onglets). */
+export function CatalogView({ onOpen, kinds = ['stock'] }: { onOpen: (symbol: string) => void; kinds?: InstrumentKind[] }) {
   const { t, lang } = useI18n();
-  const { rows, loading } = useScreener();
+  const all = useScreener(kinds);
+  const [kind, setKind] = useState<InstrumentKind | ''>('');
+  const rows = useMemo(() => (kind ? all.rows.filter((r) => (r.kind ?? 'stock') === kind) : all.rows), [all.rows, kind]);
+  const loading = all.loading;
+  const markets = kinds.length > 1;
   const [query, setQuery] = useState('');
   const [filters, setFilters] = useState<Filters>({ pea: false, country: '' });
   const [verdict, setVerdict] = useState('');
@@ -43,7 +48,7 @@ export function CatalogView({ onOpen }: { onOpen: (symbol: string) => void }) {
 
   const pages = Math.max(1, Math.ceil(list.length / PAGE));
   const current = Math.min(page, pages);
-  useEffect(() => setPage(1), [query, filters, verdict, sort]);
+  useEffect(() => setPage(1), [query, filters, verdict, sort, kind]);
   const toggleSort = (col: Col) => setSort((s) => ({ col, desc: s.col === col ? !s.desc : col !== 'name' }));
   const addFav = (r: ScreenerRow) => api.addFavorite(r.symbol, r.name).then(() => setAdded((s) => new Set(s).add(r.symbol)));
 
@@ -51,9 +56,21 @@ export function CatalogView({ onOpen }: { onOpen: (symbol: string) => void }) {
     <div className="space-y-5">
       <div className="card p-4 space-y-3">
         <div>
-          <h1 className="text-2xl font-bold flex items-center gap-2"><Building2 className="w-6 h-6 text-sky-500" />{t.coTitle} <span className="text-base muted font-normal">({list.length})</span></h1>
-          <p className="text-sm muted">{t.coSubtitle}</p>
+          <h1 className="text-2xl font-bold flex items-center gap-2">
+            {markets ? <Layers className="w-6 h-6 text-sky-500" /> : <Building2 className="w-6 h-6 text-sky-500" />}
+            {markets ? t.mkTitle : t.coTitle} <span className="text-base muted font-normal">({list.length})</span></h1>
+          <p className="text-sm muted">{markets ? t.mkSubtitle : t.coSubtitle}</p>
         </div>
+        {markets && (
+          <div className="flex flex-wrap gap-1">
+            {(['', ...kinds] as const).map((k) => (
+              <button key={k || 'all'} onClick={() => setKind(k)}
+                className={`px-3 py-1 rounded-full text-xs font-medium cursor-pointer border ${kind === k ? 'bg-sky-600 text-white border-sky-600' : 'border-slate-300 dark:border-slate-700 muted'}`}>
+                {k ? t[`kind_${k}`] : t.kind_all} <span className="opacity-70">({k ? all.rows.filter((r) => (r.kind ?? 'stock') === k).length : all.rows.length})</span>
+              </button>
+            ))}
+          </div>
+        )}
         <div className="flex flex-wrap items-center gap-3">
           <div className="relative w-full md:w-72">
             <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 muted" />

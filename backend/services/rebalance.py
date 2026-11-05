@@ -131,7 +131,7 @@ def plan(summary: dict) -> dict:
     raw = {s: conviction(adv.get(s)) / math.sqrt(vol(s)) for s in held if value.get(s, 0) > 0 and s != etf}
     held_sectors = {sector[s] for s in raw}
     cands = sorted((s for s, v in verdicts.items() if s not in held and s != etf and v["score"] >= 25 and v["verdict"] in ("BUY", "STRONG_BUY")
-                    and (info.get(s) or {}).get("pea") and not (info.get(s) or {}).get("status") and (info.get(s) or {}).get("market") != "etf"),
+                    and (info.get(s) or {}).get("pea") and not (info.get(s) or {}).get("status") and (info.get(s) or {}).get("kind", "stock") == "stock"),
                    key=lambda s: -(conviction(verdicts[s]) + (0.5 if sector[s] not in held_sectors else 0)))
     picked, used = [], set(held_sectors)
     for s in cands:

@@ -71,3 +71,9 @@ Classement, liste des entreprises, analyses automatiques, pool de clés IA multi
 - [x] TTF (0,4 %) et frais de change calculés ; objectifs (versement programmé, part d'ETF, plafonds) ; plan du prochain versement
 - [x] Calendrier des dividendes reçus / attendus et rendement du portefeuille
 - [x] Outil de calibration du modèle local (tools/calibrate.py) : aucune pondération ne bat l'actuelle hors échantillon, modèle inchangé
+
+## ✅ v2.3 — Analyses groupées, historique IA, ETF & marchés, News
+- [x] Analyses IA groupées (1, 10, 25, 50, 100) : verdict de synthèse, accord, dispersion, intervalle de confiance, fréquence des idées
+- [x] Analyses IA enregistrées (détail dépliable, date) avec indice de renouvellement (âge, variation du cours, nouveaux articles)
+- [x] Page « ETF & marchés » : 101 ETF, indices, matières premières, devises, crypto ; filtre par type dans la recherche
+- [x] Onglet News : actualités les plus couvertes et sujets récurrents, par jour / semaine / mois / année ou historique (année, mois)

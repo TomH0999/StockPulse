@@ -76,7 +76,7 @@ def test_advice_endpoints(market):
 
 
 def test_settings_endpoints(monkeypatch):
-    monkeypatch.setattr(ai_pool, "_request", lambda e, p, max_tokens=4000: "{}")
+    monkeypatch.setattr(ai_pool, "_request", lambda e, p, max_tokens=4000, **kw: "{}")
     s = client.post("/api/settings/ai/keys", json={"provider": "groq", "key": "gsk_secret_value"}).json()
     assert s["keys"][0]["hint"] == "…alue" and "gsk_secret_value" not in str(s)
     assert client.post("/api/settings/ai/keys", json={"provider": "bad", "key": "x"}).status_code == 400

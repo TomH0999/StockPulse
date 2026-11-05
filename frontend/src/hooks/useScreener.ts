@@ -1,8 +1,8 @@
-import { useEffect, useState } from 'react';
-import { api, ScreenerRow } from '../services/api';
+import { useEffect, useMemo, useState } from 'react';
+import { api, InstrumentKind, ScreenerRow } from '../services/api';
 
-/** Données de toutes les entreprises du catalogue, rafraîchies chaque minute. */
-export function useScreener() {
+/** Données du catalogue (par défaut : actions seulement), rafraîchies chaque minute. */
+export function useScreener(kinds: InstrumentKind[] = ['stock']) {
   const [rows, setRows] = useState<ScreenerRow[]>([]);
   const [updated, setUpdated] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -18,5 +18,7 @@ export function useScreener() {
     return () => { alive = false; clearInterval(id); };
   }, []);
 
-  return { rows, updated, loading };
+  const key = kinds.join();
+  const filtered = useMemo(() => rows.filter((r) => kinds.includes(r.kind ?? 'stock')), [rows, key]); // eslint-disable-line react-hooks/exhaustive-deps
+  return { rows: filtered, updated, loading };
 }

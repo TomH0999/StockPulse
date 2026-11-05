@@ -24,6 +24,9 @@ SUFFIXES = {
 # PEA : sociétés dont le siège est dans l'Union européenne ou l'Espace économique européen (préfixe ISIN)
 EEA = set("AT BE BG HR CY CZ DK EE FI FR DE GR HU IE IT LV LT LU MT NL PL PT RO SK SI ES SE IS LI NO".split())
 
+# Type d'instrument : nom du fichier du catalogue (les autres fichiers sont des actions)
+KINDS = ("etf", "index", "commodity", "fx", "crypto")
+
 _lock = threading.Lock()
 _entries: list[dict] | None = None
 
@@ -31,11 +34,12 @@ _entries: list[dict] | None = None
 def _make(e: dict, market: str) -> dict:
     sym = e["symbol"].upper()
     country, pea = SUFFIXES.get(sym.rsplit(".", 1)[-1], ("US", False)) if "." in sym else ("US", False)
+    kind = market if market in KINDS else "stock"
     isin = e.get("isin")
     if isin:
         country, pea = isin[:2], isin[:2] in EEA
     return {"symbol": sym, "name": e["name"], "market": market, "country": e.get("country", country),
-            "pea": e.get("pea", pea), "sector": e.get("sector"), "isin": isin, "core": bool(e.get("core")), "status": None}
+            "pea": e.get("pea", pea), "sector": e.get("sector"), "isin": isin, "core": bool(e.get("core")), "status": None, "kind": kind}
 
 
 def _updates() -> dict:

@@ -7,6 +7,7 @@ import { FavoritesBar } from './FavoritesBar';
 import { ChartPanel } from './ChartPanel';
 import { AdvicePanel } from './AdvicePanel';
 import { NewsPanel } from './NewsPanel';
+import { EnsemblePanel, SavedAnalysesPanel } from './AiAnalysesPanel';
 import { PriceAlertButton } from './PriceAlertButton';
 
 interface Props {
@@ -134,6 +135,11 @@ export function DashboardView({ symbol, onSelect, settingsVersion }: Props) {
           <ChartPanel symbol={symbol} currency={cur} highlightTs={highlightTs} />
         </div>
         <AdvicePanel key={`${symbol}-${settingsVersion}`} symbol={symbol} onAdvice={onAdvice} onShowDate={setHighlightTs} />
+      </div>
+
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-5">
+        <EnsemblePanel symbol={symbol} />
+        <SavedAnalysesPanel symbol={symbol} />
       </div>
 
       <NewsPanel symbol={symbol} companyName={quote?.name ?? ''} onShowOnChart={(ts) => { setHighlightTs(ts); window.scrollTo({ top: 0, behavior: 'smooth' }); }} />

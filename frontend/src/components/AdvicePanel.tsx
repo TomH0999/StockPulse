@@ -3,6 +3,7 @@ import { RefreshCw, Sparkles, TrendingDown, TrendingUp, Repeat, CalendarClock, Z
 import { Advice, api, errorMessage, onPortfolioChanged, pct } from '../services/api';
 import { useI18n, VERDICT_STYLE } from '../context';
 import { OrderModal } from './OrderModal';
+import { notifyAiSaved } from './AiAnalysesPanel';
 
 interface Props {
   symbol: string;
@@ -39,7 +40,7 @@ export function AdvicePanel({ symbol, onAdvice, onShowDate }: Props) {
     setLoading(true);
     setError(null);
     api.advice(symbol, lang, refresh, ai)
-      .then((a) => { setAdvice(a); onAdvice(a); })
+      .then((a) => { setAdvice(a); onAdvice(a); if (ai && a.engine !== 'local') notifyAiSaved(); })
       .catch((e) => setError(errorMessage(e)))
       .finally(() => setLoading(false));
   };

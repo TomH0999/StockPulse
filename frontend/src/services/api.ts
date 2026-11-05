@@ -107,7 +107,33 @@ export interface CatalogEntry {
   country: string;
   pea: boolean;
   sector: string | null;
+  kind?: InstrumentKind;
 }
+
+export type InstrumentKind = 'stock' | 'etf' | 'index' | 'commodity' | 'fx' | 'crypto';
+export const KINDS: InstrumentKind[] = ['stock', 'etf', 'index', 'commodity', 'fx', 'crypto'];
+
+export interface Theme { text: string; frequency: number }
+export interface EnsembleResult {
+  id?: number; symbol: string; name: string; runs: number; requested: number; partial: boolean; stopped_reason: string | null;
+  verdict: Verdict; verdict_label: string; majority: Verdict; agreement: number; score: number; score_median: number;
+  score_std: number; score_min: number; score_max: number; ci95: [number, number] | null; bullish_share: number; bearish_share: number;
+  distribution: Record<Verdict, number>; confidence_distribution: Record<string, number>; strength: 'single' | 'strong' | 'moderate' | 'weak';
+  opportunities: Theme[]; threats: Theme[]; catalysts: Theme[]; summary: string; engines: Record<string, number>;
+  local_score: number; local_verdict: Verdict; generated_at: number;
+}
+export interface EnsembleJob { id: string; symbol: string; total: number; done: number; failed: number; finished: boolean;
+  error: string | null; last_error?: string; result: EnsembleResult | null }
+export interface Renewal { index: number; status: 'ok' | 'watch' | 'renew'; reason: 'age' | 'price' | 'news'; age_days: number;
+  price_move: number | null; new_articles: number }
+export interface SavedAnalysis { id: number; symbol: string; created_at: number; kind: 'single' | 'ensemble'; runs: number;
+  verdict: Verdict; score: number; confidence: string; price: number | null; currency: string | null; engine: string;
+  payload: Record<string, unknown>; renewal: Renewal }
+export interface NewsStory { headline: string; url: string; source: string; timestamp: number; first_seen: number; count: number;
+  sources: string[]; source_count: number; headline_page: boolean; symbols: string[]; sentiment: number; score: number;
+  related: { headline: string; url: string; source: string; timestamp: number }[] }
+export interface NewsReport { period: string; start: string; end: string; articles: number; sources: number;
+  topics: { term: string; count: number; sources: number; share: number }[]; stories: NewsStory[] }
 
 export interface ScreenerRow extends CatalogEntry {
   currency?: string;
@@ -273,6 +299,13 @@ export const api = {
   quotes: (symbols: string[]) => get<Quote[]>('/market/quotes', { symbols: symbols.join(',') }),
   history: (symbol: string, period: string) =>
     get<{ data: HistoryPoint[] }>(`/market/history/${encodeURIComponent(symbol)}`, { period }).then((r) => r.data),
+  savedAnalyses: (symbol: string) => get<SavedAnalysis[]>(`/advice/${encodeURIComponent(symbol)}/saved`),
+  deleteSaved: async (id: number) => (await apiClient.delete(`/advice/saved/${id}`)).data,
+  startEnsemble: async (symbol: string, runs: number, lang: Lang) =>
+    (await apiClient.post<EnsembleJob>(`/advice/${encodeURIComponent(symbol)}/ensemble`, { runs, lang })).data,
+  ensembleStatus: (id: string) => get<EnsembleJob>(`/ensemble/${id}`),
+  cancelEnsemble: async (id: string) => (await apiClient.delete(`/ensemble/${id}`)).data,
+  topNews: (period: string, year?: number, month?: number) => get<NewsReport>('/news/top', { period, year, month }),
   search: (q: string) => get<SearchResult[]>('/market/search', { q }),
   news: (symbol: string, refresh = false) =>
     get<{ articles: Article[]; backfilling: boolean }>(`/market/news/${encodeURIComponent(symbol)}`, { refresh }),

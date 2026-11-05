@@ -10,7 +10,7 @@ from collections import defaultdict
 from datetime import datetime, timezone
 
 import store
-from services import ai_pool, fundamentals, news, portfolio, yahoo
+from services import ai_pool, ai_store, fundamentals, news, portfolio, yahoo
 
 CACHE_SECONDS = 3600
 # Pondération des composantes du score local, calibrée sur l'historique réel (tools/calibrate.py)
@@ -362,13 +362,13 @@ def local_advice(sym, lang, quote, hist, arts, now=None):
     }
 
 
-def _prompt(base, arts, lang, pea=None):
+def _prompt(base, arts, lang, pea=None, compact=False):
     t = base["technicals"]
     lines = [f"[{i}] {datetime.fromtimestamp(a['timestamp'], timezone.utc):%Y-%m-%d} | {a['source']} | {a['headline']}"
              + (f" — {a['summary'][:120]}" if a["summary"] else "") for i, a in enumerate(arts)]
     evs = [f"{e['date']}: {e['change']:+.1f}% (20 sessions later: {e['after_20d']}%) news: {' / '.join(e['headlines']) or 'none'}"
            for e in base["events"]]
-    return f"""You are a seasoned equity analyst and long-term investor. Analyse {base['name']} ({base['symbol']}).
+    out = f"""You are a seasoned equity analyst and long-term investor. Analyse {base['name']} ({base['symbol']}).
 
 PRICE DATA (daily, up to 10 years): {json.dumps(t)}
 QUANTITATIVE SIGNALS: {json.dumps(base['components'])}
@@ -391,6 +391,9 @@ Answer ONLY with JSON, all text in {LANG_NAMES.get(lang, 'English')}:
 "opportunities": ["..."], "threats": ["..."], "patterns": ["<recurring behaviours spotted>"], "catalysts": ["<upcoming events to watch>"],
 "article_sentiments": [{{"i": <article number>, "s": <float -1..1 impact on the stock>}}]}}
 "article_sentiments" MUST contain exactly one entry for EVERY numbered article (0 to {len(arts) - 1})."""
+    if compact:  # analyses groupées : réponse courte, sans notation des articles
+        out = out.split('"article_sentiments"')[0].rstrip(", \n") + "}\nGive 2 to 4 short items per list."
+    return out
 
 
 def advise(sym, lang="fr", force=False, use_ai=True, max_wait=20.0, backfill=True, fetch_fundamentals=True, background=False):
@@ -442,6 +445,9 @@ def advise(sym, lang="fr", force=False, use_ai=True, max_wait=20.0, backfill=Tru
                 "catalysts": ai.get("catalysts") or [], "engine": provider, "articles_analyzed": len(recent),
             })
             result["verification"] = verify(result, ai, local_score, known)
+            result["generated_at"] = int(time.time())
+            ai_store.save(sym, "single", {k: v for k, v in result.items() if k not in ("technicals", "events", "components")},
+                          quote.get("price"), quote.get("currency"), lang)
             with store.connect() as conn:
                 for item in ai.get("article_sentiments") or []:
                     i = item.get("i")

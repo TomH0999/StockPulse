@@ -182,10 +182,10 @@ def _wait_seconds(res) -> float:
     return 30.0
 
 
-def _request(entry: dict, prompt: str, max_tokens: int = 4000) -> str:
+def _request(entry: dict, prompt: str, max_tokens: int = 4000, temperature: float = 0.3) -> str:
     p = PROVIDERS[entry["provider"]]
     model = _model(entry)
-    body = {"model": model, "temperature": 0.3, "max_tokens": max_tokens, "response_format": {"type": "json_object"},
+    body = {"model": model, "temperature": temperature, "max_tokens": max_tokens, "response_format": {"type": "json_object"},
             "messages": [{"role": "user", "content": prompt}]}
     fallbacks = _state.get(entry["id"], {}).get("fallbacks")
     if entry["provider"] == "openrouter" and fallbacks:
@@ -244,7 +244,7 @@ def _pick(exclude: set, background: bool = False) -> dict | None:
         return k
 
 
-def complete_json(prompt: str, max_wait: float = 0, background: bool = False) -> tuple[dict, str]:
+def complete_json(prompt: str, max_wait: float = 0, background: bool = False, temperature: float = 0.3) -> tuple[dict, str]:
     """Envoie le prompt à la première clé disponible. Renvoie (réponse JSON, fournisseur).
     background=True : analyse automatique, limitée à une part du quota et suspendue quand l'utilisateur demande une analyse."""
     global _last_interactive
@@ -268,7 +268,7 @@ def complete_json(prompt: str, max_wait: float = 0, background: bool = False) ->
         st = _state.setdefault(entry["id"], {})
         try:
             _count(entry)
-            text = _request(entry, prompt)
+            text = _request(entry, prompt, temperature=temperature)
             st["ok"] = st.get("ok", 0) + 1
             st["last_error"] = None
             return extract_json(text), entry["provider"]
