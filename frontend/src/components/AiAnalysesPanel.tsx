@@ -54,6 +54,14 @@ export function EnsembleSummary({ r }: { r: EnsembleResult }) {
       <p className="text-xs">{t[`ensRead_${r.strength}`].replace('{b}', String(r.bullish_share)).replace('{s}', String(r.bearish_share))}
         {' '}{t.ensLocal.replace('{s}', `${r.local_score > 0 ? '+' : ''}${r.local_score}`)}
         {r.runs > 1 && r.score_max - r.score_min > 60 && <> {t.ensRange.replace('{a}', String(r.score_min)).replace('{b}', String(r.score_max))}</>}</p>
+      {r.runs >= 10 && (
+        <p className={`text-xs font-semibold ${r.retained ? 'up' : 'text-amber-600 dark:text-amber-400'}`}>{r.retained ? `✓ ${t.ensRetained}` : `⚠ ${t.ensUncertain}`}</p>
+      )}
+      {r.outlook && r.outlook.expected_12m_adjusted !== null && (
+        <p className="text-xs">{t.aiExpected} <b>{r.outlook.expected_12m_adjusted > 0 ? '+' : ''}{r.outlook.expected_12m_adjusted} %</b>
+          {r.outlook.prob_outperform_adjusted !== null && <> · {t.aiProbBeat} <b>{r.outlook.prob_outperform_adjusted} %</b></>}
+          <span className="muted"> ({t.ensAvgOf} {r.outlook.n})</span></p>
+      )}
       {r.partial && r.stopped_reason && <p className="text-xs text-amber-500">{t.ensPartial} {r.stopped_reason}</p>}
       <p className="text-sm leading-relaxed">{r.summary}</p>
       <Themes title={t.opportunities} items={r.opportunities} tone="up" />
@@ -64,7 +72,7 @@ export function EnsembleSummary({ r }: { r: EnsembleResult }) {
   );
 }
 
-export function EnsemblePanel({ symbol }: { symbol: string }) {
+export function EnsemblePanel({ symbol, bare = false }: { symbol: string; bare?: boolean }) {
   const { t, lang } = useI18n();
   const [runs, setRuns] = useState(10);
   const [job, setJob] = useState<EnsembleJob | null>(null);
@@ -86,8 +94,8 @@ export function EnsemblePanel({ symbol }: { symbol: string }) {
   const running = job && !job.finished;
 
   return (
-    <div className="card p-5 space-y-3">
-      <h2 className="font-bold flex items-center gap-2"><Layers3 className="w-4 h-4 text-sky-500" />{t.ensTitle}</h2>
+    <div className={bare ? 'space-y-3' : 'card p-5 space-y-3'}>
+      {!bare && <h2 className="font-bold flex items-center gap-2"><Layers3 className="w-4 h-4 text-sky-500" />{t.ensTitle}</h2>}
       <p className="text-xs muted">{t.ensHelp}</p>
       <div className="flex flex-wrap items-center gap-2">
         <div className="flex rounded-lg overflow-hidden border border-slate-300 dark:border-slate-700">
@@ -146,7 +154,7 @@ function SingleDetails({ p }: { p: Record<string, unknown> }) {
   );
 }
 
-export function SavedAnalysesPanel({ symbol }: { symbol: string }) {
+export function SavedAnalysesPanel({ symbol, bare = false }: { symbol: string; bare?: boolean }) {
   const { t, lang } = useI18n();
   const [items, setItems] = useState<SavedAnalysis[]>([]);
   const [open, setOpen] = useState<number | null>(null);
@@ -160,7 +168,7 @@ export function SavedAnalysesPanel({ symbol }: { symbol: string }) {
   const latest = items[0];
 
   return (
-    <div className="card p-5 space-y-3">
+    <div className={bare ? 'space-y-3' : 'card p-5 space-y-3'}>
       <div className="flex items-center gap-2 flex-wrap">
         <h2 className="font-bold flex items-center gap-2"><History className="w-4 h-4 text-sky-500" />{t.savedTitle} <span className="muted font-normal text-sm">({items.length})</span></h2>
         {latest && latest.renewal.status === 'renew' && <span className="ml-auto text-xs text-rose-500 font-semibold">{t.renewLatest}</span>}

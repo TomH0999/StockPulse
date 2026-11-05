@@ -9,8 +9,9 @@ import time
 from collections import defaultdict
 from datetime import datetime, timezone
 
+import catalog
 import store
-from services import ai_pool, ai_store, fundamentals, news, portfolio, yahoo
+from services import ai_pool, ai_store, fundamentals, insights, news, portfolio, yahoo
 
 CACHE_SECONDS = 3600
 # Pondération des composantes du score local, calibrée sur l'historique réel (tools/calibrate.py)
@@ -374,6 +375,10 @@ PRICE DATA (daily, up to 10 years): {json.dumps(t)}
 QUANTITATIVE SIGNALS: {json.dumps(base['components'])}
 HISTORICAL PATTERNS: {json.dumps(base['patterns'], ensure_ascii=False)}
 MAJOR PRICE SHOCKS (most recent first) with surrounding news: {json.dumps(evs, ensure_ascii=False)}
+COMPANY FIGURES (from a data provider, null = unknown, never guess them): {json.dumps({k: v for k, v in (base.get('fundamentals') or {}).items() if k not in ('source', 'fetched_at', 'v')}, ensure_ascii=False)}
+RISK (computed): {json.dumps(base.get('risk') or {})}
+RELATIVE STRENGTH (computed, vs benchmark and sector peers): {json.dumps(base.get('relative') or {})}
+LOCAL QUANTITATIVE PRIOR: score {base['score']} (-100..100), verdict {base['verdict']}; this model's verdicts replayed monthly over 5 years were right {((base.get('track_record') or {}).get('6m') or {}).get('hit_rate')} % of the time at 6 months (50 % = chance).
 INVESTOR'S PEA (French tax wrapper, personal data, EUR): {json.dumps(pea, ensure_ascii=False) if pea else "unknown"}
 RECENT ARTICLES (numbered):
 {chr(10).join(lines)}
@@ -384,11 +389,16 @@ current situation is an opportunity or a threat. Be concrete and cite facts from
 Tailor the advice to the investor's PEA: if they hold the stock, take into account their average cost, unrealised gain or loss,
 holding period and the line's weight (a line above 20% of the PEA or a sector above 35% is too concentrated); if they do not,
 consider their available cash and diversification. Say concretely what they should do with their position.
+Start from the LOCAL QUANTITATIVE PRIOR and move away from it only for specific, verifiable reasons, citing the article numbers [i]
+or the figures above. Base rates matter: most stocks do not beat their index over 12 months, so a probability far from 50 % needs
+strong evidence. Never invent figures that are not given above.
 
 Answer ONLY with JSON, all text in {LANG_NAMES.get(lang, 'English')}:
 {{"verdict": "STRONG_BUY|BUY|HOLD|REDUCE|SELL", "score": <int -100..100>, "confidence": "low|medium|high",
 "horizon": "<short phrase, e.g. 3-6 months>", "summary": "<4-6 sentences of investor reasoning>",
 "opportunities": ["..."], "threats": ["..."], "patterns": ["<recurring behaviours spotted>"], "catalysts": ["<upcoming events to watch>"],
+"prob_outperform_12m": <0..100, probability the stock beats its benchmark over 12 months>,
+"scenarios": {{"bear": {{"return_12m": <%>, "probability": <%>}}, "base": {{...}}, "bull": {{...}}}},
 "article_sentiments": [{{"i": <article number>, "s": <float -1..1 impact on the stock>}}]}}
 "article_sentiments" MUST contain exactly one entry for EVERY numbered article (0 to {len(arts) - 1})."""
     if compact:  # analyses groupées : réponse courte, sans notation des articles
@@ -421,6 +431,8 @@ def advise(sym, lang="fr", force=False, use_ai=True, max_wait=20.0, backfill=Tru
         result["track_record"] = None
         print(f"Backtest {sym}: {e}")
 
+    _enrich(result, sym, hist)
+
     if use_ai and not want_ai:
         result["ai_error"] = "Aucune clé IA : ajoutez-en une dans Paramètres → Clés IA"
     if want_ai:
@@ -430,7 +442,7 @@ def advise(sym, lang="fr", force=False, use_ai=True, max_wait=20.0, backfill=Tru
                 pea = portfolio.context(sym)
             except Exception:
                 pea = None
-            ai, provider = ai_pool.complete_json(_prompt(result, recent, lang, pea), max_wait, background)
+            ai, provider = ai_pool.complete_json(_prompt(result, recent, lang, pea), max_wait, background, effort="medium")
             v = ai.get("verdict") if ai.get("verdict") in VERDICTS else result["verdict"]
             local_score = result["score"]
             known = _known_values(result, quote)
@@ -443,6 +455,7 @@ def advise(sym, lang="fr", force=False, use_ai=True, max_wait=20.0, backfill=Tru
                 "threats": ai.get("threats") or result["threats"],
                 "patterns": (ai.get("patterns") or []) + result["patterns"],
                 "catalysts": ai.get("catalysts") or [], "engine": provider, "articles_analyzed": len(recent),
+                "outlook": outlook(ai),
             })
             result["verification"] = verify(result, ai, local_score, known)
             result["generated_at"] = int(time.time())
@@ -462,6 +475,60 @@ def advise(sym, lang="fr", force=False, use_ai=True, max_wait=20.0, backfill=Tru
         conn.execute("INSERT OR REPLACE INTO advice_cache (symbol, lang, created_at, payload) VALUES (?, ?, ?, ?)",
                      (sym, lang, int(time.time()), json.dumps(result, ensure_ascii=False)))
     return result
+
+
+AI_SHRINK = 0.5        # part de l'avis de l'IA conservée : le reste revient vers la moyenne du marché, tant que sa fiabilité n'est pas mesurée
+MARKET_RETURN = 7.0    # rendement annuel moyen des actions sur longue période (%)
+
+
+def outlook(ai: dict) -> dict | None:
+    """Scénarios à 12 mois proposés par l'IA, et version corrigée (ramenée vers la moyenne du marché et vers 50 %)."""
+    sc = ai.get("scenarios") or {}
+    rows = {}
+    for k in ("bear", "base", "bull"):
+        v = sc.get(k) or {}
+        try:
+            rows[k] = {"return_12m": float(v.get("return_12m")), "probability": float(v.get("probability"))}
+        except (TypeError, ValueError):
+            return None
+    total = sum(r["probability"] for r in rows.values()) or 1
+    for r in rows.values():
+        r["probability"] = round(r["probability"] / total * 100)
+    expected = sum(r["return_12m"] * r["probability"] for r in rows.values()) / 100
+    try:
+        p = max(0.0, min(100.0, float(ai.get("prob_outperform_12m"))))
+    except (TypeError, ValueError):
+        p = None
+    return {"scenarios": rows, "expected_12m": round(expected, 1),
+            "expected_12m_adjusted": round(MARKET_RETURN + AI_SHRINK * (expected - MARKET_RETURN), 1),
+            "prob_outperform": p, "prob_outperform_adjusted": round(50 + AI_SHRINK * (p - 50)) if p is not None else None,
+            "shrink": AI_SHRINK}
+
+
+def _enrich(result, sym, hist):
+    """Risque, force relative, fiabilité réelle et santé financière : ce qui rend le conseil exploitable."""
+    try:
+        from services import screener  # import tardif (le module de classement dépend du catalogue)
+        bench_sym, _ = insights.benchmark(sym)
+        try:
+            bench = yahoo.daily_history(bench_sym)
+        except Exception:
+            bench = None
+        info = catalog.lookup(sym) or {}
+        result["risk"] = insights.risk(hist, bench)
+        try:
+            from services import objectives
+            cap = float(objectives.get().get("max_line") or insights.MAX_LINE)
+            if result["risk"]:
+                result["risk"]["max_weight"] = min(result["risk"]["max_weight"], cap)
+        except Exception:
+            pass
+        result["relative"] = insights.relative(sym, hist, bench, info.get("sector"), screener._snapshot)
+        result["live_record"] = insights.live_record(sym, hist)
+        result["reliability"] = insights.reliability(result.get("track_record"), result["live_record"], result["risk"])
+        result["health"] = insights.health(result.get("fundamentals"))
+    except Exception as e:
+        print(f"Analyse complémentaire {sym} : {e}")
 
 
 HORIZONS = {"1m": 21, "3m": 63, "6m": 126}

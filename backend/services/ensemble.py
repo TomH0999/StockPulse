@@ -80,7 +80,19 @@ def aggregate(results: list[dict], lang: str = "fr") -> dict:
         "catalysts": themes([r.get("catalysts") for r in results], n, 4),
         "summary": min((r for r in results if r["verdict"] == majority), key=lambda r: abs(r["score"] - mean)).get("summary", ""),
         "engines": dict(Counter(r["engine"] for r in results)),
+        # Conseil retenu seulement si au moins 10 analyses et 70 % d'accord ; sinon « incertain »
+        "retained": n >= 10 and agreement >= 70,
+        "outlook": _outlook([r.get("outlook") for r in results]),
     }
+
+
+def _outlook(items: list) -> dict | None:
+    items = [o for o in items if o]
+    if not items:
+        return None
+    mean = lambda k: round(statistics.mean(o[k] for o in items if o.get(k) is not None), 1) if any(o.get(k) is not None for o in items) else None
+    return {"expected_12m": mean("expected_12m"), "expected_12m_adjusted": mean("expected_12m_adjusted"),
+            "prob_outperform": mean("prob_outperform"), "prob_outperform_adjusted": mean("prob_outperform_adjusted"), "n": len(items)}
 
 
 def _one(prompt: str, i: int) -> dict:
@@ -92,7 +104,7 @@ def _one(prompt: str, i: int) -> dict:
         score = 0
     return {"verdict": v, "score": score, "confidence": ai.get("confidence") if ai.get("confidence") in ("low", "medium", "high") else "low",
             "summary": str(ai.get("summary") or ""), "opportunities": ai.get("opportunities") or [], "threats": ai.get("threats") or [],
-            "catalysts": ai.get("catalysts") or [], "engine": provider}
+            "catalysts": ai.get("catalysts") or [], "engine": provider, "outlook": advisor.outlook(ai)}
 
 
 def _run(job: dict, sym: str, n: int, lang: str):

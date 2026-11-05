@@ -69,7 +69,10 @@ def test_refresh_merges_updates(monkeypatch):
 FMP = {"ratios-ttm": [{"priceToEarningsRatioTTM": 25.5, "netProfitMarginTTM": 0.24, "debtToEquityRatioTTM": 1.5}],
        "key-metrics-ttm": [{"returnOnEquityTTM": 1.5}],
        "earnings": [{"date": "2099-01-30"}, {"date": "2000-01-01"}],
-       "dividends": [{"date": "2099-02-10", "dividend": 0.26}]}
+       "dividends": [{"date": "2099-02-10", "dividend": 0.26}],
+       "profile": [{"marketCap": 3.5e12, "beta": 1.2, "currency": "USD"}],
+       "income-statement": [{"date": "2025-09-27", "revenue": 400e9, "netIncome": 100e9, "grossProfit": 180e9, "operatingIncome": 120e9, "eps": 6.6, "reportedCurrency": "USD"},
+                            {"date": "2024-09-28", "revenue": 380e9, "netIncome": 90e9, "grossProfit": 170e9, "operatingIncome": 115e9, "eps": 6.0}]}
 
 
 def test_fmp_parsing(monkeypatch):
@@ -77,6 +80,9 @@ def test_fmp_parsing(monkeypatch):
     d = fundamentals._fmp("k", "AAPL")
     assert d["pe"] == 25.5 and d["net_margin"] == 24.0 and d["roe"] == 150.0 and d["debt_to_equity"] == 1.5
     assert d["next_earnings"] == "2099-01-30" and d["next_dividend"] == {"date": "2099-02-10", "amount": 0.26}
+    assert d["revenue"] == 400e9 and d["net_income"] == 100e9 and d["eps"] == 6.6 and d["market_cap"] == 3.5e12
+    assert d["revenue_growth"] == 5.3 and d["earnings_growth"] == 11.1 and d["currency"] == "USD"
+    assert [a["year"] for a in d["annual"]] == ["2024", "2025"]
 
 
 def test_finnhub_and_alphavantage_parsing(monkeypatch):
@@ -84,9 +90,14 @@ def test_finnhub_and_alphavantage_parsing(monkeypatch):
                         if "metric" in url else {"earningsCalendar": [{"date": "2099-03-01"}]})
     d = fundamentals._finnhub("k", "AAPL")
     assert d["pe"] == 30 and d["next_earnings"] == "2099-03-01"
-    monkeypatch.setattr(fundamentals, "_get", lambda url, **p: {"Symbol": "IBM", "PERatio": "None", "ProfitMargin": "0.1"})
+    assert d["market_cap"] is None and d["revenue"] is None  # jamais inventé
+    av = {"OVERVIEW": {"Symbol": "IBM", "PERatio": "None", "ProfitMargin": "0.1", "RevenueTTM": "60000000000",
+                       "QuarterlyRevenueGrowthYOY": "0.05", "MarketCapitalization": "2e11"},
+          "INCOME_STATEMENT": {"annualReports": [{"fiscalDateEnding": "2025-12-31", "totalRevenue": "60000000000", "netIncome": "6000000000"}]}}
+    monkeypatch.setattr(fundamentals, "_get", lambda url, **p: av[p["function"]])
     d = fundamentals._alphavantage("k", "IBM")
-    assert d["pe"] is None and d["net_margin"] == 10.0
+    assert d["pe"] is None and d["net_margin"] == 10.0 and d["net_income"] == 6e9 and d["revenue_growth"] == 5.0
+    assert d["annual"] == [{"year": "2025", "revenue": 6e10, "net_income": 6e9, "gross_profit": None, "operating_income": None, "eps": None}]
 
 
 def test_get_cache_and_exact_symbol(monkeypatch):

@@ -182,7 +182,7 @@ def _wait_seconds(res) -> float:
     return 30.0
 
 
-def _request(entry: dict, prompt: str, max_tokens: int = 4000, temperature: float = 0.3) -> str:
+def _request(entry: dict, prompt: str, max_tokens: int = 4000, temperature: float = 0.3, effort: str = "low") -> str:
     p = PROVIDERS[entry["provider"]]
     model = _model(entry)
     body = {"model": model, "temperature": temperature, "max_tokens": max_tokens, "response_format": {"type": "json_object"},
@@ -191,7 +191,7 @@ def _request(entry: dict, prompt: str, max_tokens: int = 4000, temperature: floa
     if entry["provider"] == "openrouter" and fallbacks:
         body["models"] = [model] + fallbacks
     if "gpt-oss" in model and entry["provider"] in ("groq", "cerebras"):
-        body["reasoning_effort"] = "low"
+        body["reasoning_effort"] = effort
     res = requests.post(f"{p['base']}/chat/completions", headers={"Authorization": f"Bearer {entry['key']}"}, json=body, timeout=120)
     if res.status_code == 400 and "response_format" in res.text:
         body.pop("response_format")
@@ -244,7 +244,8 @@ def _pick(exclude: set, background: bool = False) -> dict | None:
         return k
 
 
-def complete_json(prompt: str, max_wait: float = 0, background: bool = False, temperature: float = 0.3) -> tuple[dict, str]:
+def complete_json(prompt: str, max_wait: float = 0, background: bool = False, temperature: float = 0.3,
+                  effort: str = "low") -> tuple[dict, str]:
     """Envoie le prompt à la première clé disponible. Renvoie (réponse JSON, fournisseur).
     background=True : analyse automatique, limitée à une part du quota et suspendue quand l'utilisateur demande une analyse."""
     global _last_interactive
@@ -268,7 +269,7 @@ def complete_json(prompt: str, max_wait: float = 0, background: bool = False, te
         st = _state.setdefault(entry["id"], {})
         try:
             _count(entry)
-            text = _request(entry, prompt, temperature=temperature)
+            text = _request(entry, prompt, temperature=temperature, effort=effort)
             st["ok"] = st.get("ok", 0) + 1
             st["last_error"] = None
             return extract_json(text), entry["provider"]

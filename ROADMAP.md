@@ -77,3 +77,12 @@ Classement, liste des entreprises, analyses automatiques, pool de clés IA multi
 - [x] Analyses IA enregistrées (détail dépliable, date) avec indice de renouvellement (âge, variation du cours, nouveaux articles)
 - [x] Page « ETF & marchés » : 101 ETF, indices, matières premières, devises, crypto ; filtre par type dans la recherche
 - [x] Onglet News : actualités les plus couvertes et sujets récurrents, par jour / semaine / mois / année ou historique (année, mois)
+
+## ✅ v2.4 — Conseils plus fiables et page Analyse en onglets
+- [x] Fiabilité : « Pas de signal fiable » quand les conseils passés (rejoués sur 5 ans + réellement émis, comptés double) ne dépassent pas 55 % de justes
+- [x] Risque : volatilité, bêta, pire baisse, mauvaise année, taille de ligne maximale conseillée
+- [x] Force relative : écart à l'indice (6 et 12 mois), tendance 12 mois hors dernier mois, rang dans le secteur
+- [x] Chiffres de l'entreprise : chiffre d'affaires, bénéfice, marges, croissance, BPA, capitalisation, comptes annuels, note de santé financière
+- [x] IA : raisonnement plus poussé, chiffres et risque fournis, ancrage sur le modèle local, scénarios et probabilité corrigés vers la moyenne du marché
+- [x] IA groupée : conseil retenu seulement à partir de 10 analyses et 70 % d'accord
+- [x] Page Analyse : carte « Décision » à côté du graphique et onglets Entreprise / Risque & force / Fiabilité / IA groupée / Historique IA / Rebondissements / Actualités

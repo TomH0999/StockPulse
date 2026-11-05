@@ -5,9 +5,8 @@ import { useI18n } from '../context';
 import { StockSearchSelector } from './StockSearchSelector';
 import { FavoritesBar } from './FavoritesBar';
 import { ChartPanel } from './ChartPanel';
-import { AdvicePanel } from './AdvicePanel';
+import { AnalysisSection } from './AnalysisSection';
 import { NewsPanel } from './NewsPanel';
-import { EnsemblePanel, SavedAnalysesPanel } from './AiAnalysesPanel';
 import { PriceAlertButton } from './PriceAlertButton';
 
 interface Props {
@@ -130,19 +129,10 @@ export function DashboardView({ symbol, onSelect, settingsVersion }: Props) {
         </div>
       )}
 
-      <div className="grid grid-cols-1 xl:grid-cols-3 gap-5">
-        <div className="xl:col-span-2">
-          <ChartPanel symbol={symbol} currency={cur} highlightTs={highlightTs} />
-        </div>
-        <AdvicePanel key={`${symbol}-${settingsVersion}`} symbol={symbol} onAdvice={onAdvice} onShowDate={setHighlightTs} />
-      </div>
-
-      <div className="grid grid-cols-1 xl:grid-cols-2 gap-5">
-        <EnsemblePanel symbol={symbol} />
-        <SavedAnalysesPanel symbol={symbol} />
-      </div>
-
-      <NewsPanel symbol={symbol} companyName={quote?.name ?? ''} onShowOnChart={(ts) => { setHighlightTs(ts); window.scrollTo({ top: 0, behavior: 'smooth' }); }} />
+      <AnalysisSection key={`${symbol}-${settingsVersion}`} symbol={symbol} onAdvice={onAdvice}
+        onShowDate={(ts) => { setHighlightTs(ts); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+        chart={<ChartPanel symbol={symbol} currency={cur} highlightTs={highlightTs} />}
+        news={<NewsPanel symbol={symbol} companyName={quote?.name ?? ''} onShowOnChart={(ts) => { setHighlightTs(ts); window.scrollTo({ top: 0, behavior: 'smooth' }); }} />} />
     </div>
   );
 }

@@ -81,6 +81,12 @@ export interface Advice {
   verification: { status: 'verified' | 'warning'; checked: number; unverified: string[]; notes: string[]; local_score: number } | null;
   generated_at: number;
   articles_analyzed: number;
+  risk?: RiskInfo | Record<string, never>;
+  relative?: RelativeInfo;
+  live_record?: { n: number } & Partial<Record<'1m' | '3m' | '6m', { n: number; hit_rate: number | null }>>;
+  reliability?: Reliability;
+  health?: HealthScores | null;
+  outlook?: Outlook | null;
 }
 
 export interface AdviceSummary {
@@ -119,7 +125,8 @@ export interface EnsembleResult {
   verdict: Verdict; verdict_label: string; majority: Verdict; agreement: number; score: number; score_median: number;
   score_std: number; score_min: number; score_max: number; ci95: [number, number] | null; bullish_share: number; bearish_share: number;
   distribution: Record<Verdict, number>; confidence_distribution: Record<string, number>; strength: 'single' | 'strong' | 'moderate' | 'weak';
-  opportunities: Theme[]; threats: Theme[]; catalysts: Theme[]; summary: string; engines: Record<string, number>;
+  opportunities: Theme[]; threats: Theme[]; catalysts: Theme[]; summary: string; engines: Record<string, number>; retained?: boolean;
+  outlook?: { expected_12m: number | null; expected_12m_adjusted: number | null; prob_outperform: number | null; prob_outperform_adjusted: number | null; n: number } | null;
   local_score: number; local_verdict: Verdict; generated_at: number;
 }
 export interface EnsembleJob { id: string; symbol: string; total: number; done: number; failed: number; finished: boolean;
@@ -242,7 +249,21 @@ export interface Portfolio {
 export interface Fundamentals {
   pe: number | null; net_margin: number | null; debt_to_equity: number | null; roe: number | null;
   next_earnings: string | null; next_dividend: { date: string; amount: number | null } | null; source: string; fetched_at: number;
+  forward_pe?: number | null; pb?: number | null; gross_margin?: number | null; operating_margin?: number | null;
+  revenue?: number | null; net_income?: number | null; revenue_growth?: number | null; earnings_growth?: number | null;
+  eps?: number | null; market_cap?: number | null; dividend_yield?: number | null; beta?: number | null; target_price?: number | null;
+  currency?: string | null;
+  annual?: { year: string; revenue: number | null; net_income: number | null; gross_profit: number | null; operating_income: number | null; eps: number | null }[];
 }
+export interface RiskInfo { volatility: number; downside_volatility: number; max_drawdown_5y: number; bad_year: number | null;
+  worst_month: number | null; beta: number | null; level: 'low' | 'medium' | 'high' | 'very_high'; max_weight: number }
+export interface RelativeInfo { benchmark: string; excess_6m?: number; excess_12m?: number; momentum_12_1?: number;
+  sector_rank?: number; sector_peers?: number; sector_median?: number }
+export interface Reliability { level: 'reliable' | 'weak' | 'contrarian' | 'insufficient'; signal: boolean; reasons: string[]; threshold: number }
+export interface HealthScores { profitability: number | null; growth: number | null; solidity: number | null; valuation: number | null;
+  overall: number | null; criteria: number }
+export interface Outlook { scenarios: Record<'bear' | 'base' | 'bull', { return_12m: number; probability: number }>; expected_12m: number;
+  expected_12m_adjusted: number; prob_outperform: number | null; prob_outperform_adjusted: number | null; shrink: number }
 
 export interface OrderPlan {
   symbol: string; side: 'buy' | 'sell' | 'reduce'; name: string; isin: string | null; price: number; currency: string;
@@ -365,6 +386,15 @@ export const formatPrice = (value: number, currency: string, lang: Lang) => {
 
 let catalogPromise: Promise<CatalogEntry[]> | null = null;
 export const loadCatalog = () => (catalogPromise ??= api.catalog().catch((e) => { catalogPromise = null; throw e; }));
+
+/** Grand montant lisible : 1,2 Md€, 350 M$… */
+export const bigMoney = (v: number | null | undefined, lang: Lang, currency = 'EUR') => {
+  if (v === null || v === undefined) return '–';
+  const units: [number, string][] = lang === 'fr' ? [[1e12, ' Bn'], [1e9, ' Md'], [1e6, ' M']] : [[1e12, 'T'], [1e9, 'B'], [1e6, 'M']];
+  const [div, u] = units.find(([d]) => Math.abs(v) >= d) ?? [1, ''];
+  const sym = { EUR: '€', USD: '$', GBP: '£', JPY: '¥', CHF: 'CHF' }[currency] ?? currency;
+  return `${(v / div).toLocaleString(lang, { maximumFractionDigits: 1 })}${u} ${sym}`;
+};
 
 export const pct = (v: number | null | undefined) => (v === null || v === undefined ? '–' : `${v > 0 ? '+' : ''}${v.toFixed(2)}%`);
 

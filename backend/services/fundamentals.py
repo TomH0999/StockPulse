@@ -1,5 +1,6 @@
-"""Fondamentaux (PER, marge, dette, rentabilité) et calendrier (résultats, dividendes) via des clés gratuites.
-Fournisseurs essayés dans l'ordre des clés enregistrées ; résultat mis en cache 7 jours par valeur."""
+"""Chiffres de l'entreprise (chiffre d'affaires, bénéfices, marges, croissance, valorisation, dette) et calendrier
+(résultats, dividendes) via des clés gratuites. Fournisseurs essayés dans l'ordre des clés enregistrées ;
+résultat mis en cache 7 jours par valeur. Champs absents chez un fournisseur : None (jamais inventés)."""
 import json
 import time
 import uuid
@@ -15,6 +16,23 @@ PROVIDERS = {
     "alphavantage": "https://www.alphavantage.co/support/#api-key",
 }
 CACHE_SECONDS = 7 * 86400
+VERSION = 2  # cache des versions précédentes (moins de champs) rechargé
+FIELDS = ("pe", "forward_pe", "pb", "net_margin", "gross_margin", "operating_margin", "roe", "debt_to_equity",
+          "revenue", "net_income", "revenue_growth", "earnings_growth", "eps", "market_cap", "dividend_yield", "beta",
+          "target_price", "currency", "next_earnings", "next_dividend", "annual")
+
+
+def _full(d: dict) -> dict:
+    return {k: d.get(k) for k in FIELDS}
+
+
+def _annual(rows, year, revenue, net, gross, op, eps) -> list[dict]:
+    """Comptes annuels (les 4 derniers exercices, du plus ancien au plus récent)."""
+    out = []
+    for r in (rows or [])[:4]:
+        out.append({"year": str(r.get(year) or "")[:4], "revenue": _num(r.get(revenue)), "net_income": _num(r.get(net)),
+                    "gross_profit": _num(r.get(gross)), "operating_income": _num(r.get(op)), "eps": _num(r.get(eps)) if eps else None})
+    return [a for a in out if a["year"]][::-1]
 
 
 def keys() -> list[dict]:
@@ -66,14 +84,27 @@ def _fmp(key, sym):
     today = date.today().isoformat()
     earnings = [e for e in _get(f"{base}/earnings", symbol=sym, apikey=key) or [] if e.get("date", "") >= today]
     divs = [d for d in _get(f"{base}/dividends", symbol=sym, apikey=key) or [] if d.get("date", "") >= today]
-    return {
+    profile = (_get(f"{base}/profile", symbol=sym, apikey=key) or [{}])[0]
+    income = _get(f"{base}/income-statement", symbol=sym, limit=5, apikey=key) or []
+    annual = _annual(income, "date", "revenue", "netIncome", "grossProfit", "operatingIncome", "eps")
+    last, prev = (annual[-1] if annual else {}), (annual[-2] if len(annual) > 1 else {})
+    growth = lambda k: round((last[k] / prev[k] - 1) * 100, 1) if last.get(k) and prev.get(k) and prev[k] > 0 else None
+    return _full({
         "pe": _first(ratios, "priceToEarningsRatioTTM", "peRatioTTM"),
+        "pb": _first(ratios, "priceToBookRatioTTM"),
         "net_margin": _pct(_first(ratios, "netProfitMarginTTM")),
+        "gross_margin": _pct(_first(ratios, "grossProfitMarginTTM")),
+        "operating_margin": _pct(_first(ratios, "operatingProfitMarginTTM")),
         "debt_to_equity": _first(ratios, "debtToEquityRatioTTM", "debtEquityRatioTTM"),
         "roe": _pct(_first(metrics, "returnOnEquityTTM", "roeTTM")),
+        "dividend_yield": _pct(_first(ratios, "dividendYieldTTM")),
+        "eps": last.get("eps"), "revenue": last.get("revenue"), "net_income": last.get("net_income"),
+        "revenue_growth": growth("revenue"), "earnings_growth": growth("net_income"),
+        "market_cap": _first(profile, "marketCap", "mktCap"), "beta": _first(profile, "beta"),
+        "currency": (income[0].get("reportedCurrency") if income else None) or profile.get("currency"), "annual": annual,
         "next_earnings": min((e["date"] for e in earnings), default=None),
         "next_dividend": min(({"date": d["date"], "amount": d.get("dividend")} for d in divs), key=lambda d: d["date"], default=None),
-    }
+    })
 
 
 def _finnhub(key, sym):
@@ -82,22 +113,41 @@ def _finnhub(key, sym):
         return None
     cal = _get("https://finnhub.io/api/v1/calendar/earnings", symbol=sym, token=key,
                **{"from": date.today().isoformat(), "to": (date.today() + timedelta(days=120)).isoformat()}) or {}
-    return {
-        "pe": _first(m, "peTTM", "peBasicExclExtraTTM"),
-        "net_margin": _first(m, "netProfitMarginTTM"),
+    cap = _first(m, "marketCapitalization")
+    return _full({
+        "pe": _first(m, "peTTM", "peBasicExclExtraTTM"), "pb": _first(m, "pbQuarterly", "pbAnnual"),
+        "net_margin": _first(m, "netProfitMarginTTM"), "gross_margin": _first(m, "grossMarginTTM"),
+        "operating_margin": _first(m, "operatingMarginTTM"),
         "debt_to_equity": _first(m, "totalDebt/totalEquityQuarterly", "totalDebt/totalEquityAnnual"),
-        "roe": _first(m, "roeTTM"),
+        "roe": _first(m, "roeTTM"), "eps": _first(m, "epsTTM", "epsBasicExclExtraItemsTTM"),
+        "revenue_growth": _first(m, "revenueGrowthTTMYoy"), "earnings_growth": _first(m, "epsGrowthTTMYoy"),
+        "market_cap": cap * 1e6 if cap else None,  # Finnhub : en millions
+        "dividend_yield": _first(m, "currentDividendYieldTTM", "dividendYieldIndicatedAnnual"), "beta": _first(m, "beta"),
         "next_earnings": min((e["date"] for e in cal.get("earningsCalendar") or []), default=None),
-        "next_dividend": None,
-    }
+    })
 
 
 def _alphavantage(key, sym):
     o = _get("https://www.alphavantage.co/query", function="OVERVIEW", symbol=sym, apikey=key) or {}
     if not o.get("Symbol"):
         return None
-    return {"pe": _first(o, "PERatio"), "net_margin": _pct(_first(o, "ProfitMargin")), "debt_to_equity": None,
-            "roe": _pct(_first(o, "ReturnOnEquityTTM")), "next_earnings": None, "next_dividend": None}
+    revenue, margin = _first(o, "RevenueTTM"), _first(o, "ProfitMargin")
+    gross = _first(o, "GrossProfitTTM")
+    try:
+        inc = _get("https://www.alphavantage.co/query", function="INCOME_STATEMENT", symbol=sym, apikey=key) or {}
+    except Exception:
+        inc = {}
+    return _full({
+        "pe": _first(o, "PERatio", "TrailingPE"), "forward_pe": _first(o, "ForwardPE"), "pb": _first(o, "PriceToBookRatio"),
+        "net_margin": _pct(margin), "operating_margin": _pct(_first(o, "OperatingMarginTTM")),
+        "gross_margin": round(gross / revenue * 100, 2) if gross and revenue else None,
+        "roe": _pct(_first(o, "ReturnOnEquityTTM")), "eps": _first(o, "EPS"),
+        "revenue": revenue, "net_income": revenue * margin if revenue and margin is not None else None,
+        "revenue_growth": _pct(_first(o, "QuarterlyRevenueGrowthYOY")), "earnings_growth": _pct(_first(o, "QuarterlyEarningsGrowthYOY")),
+        "market_cap": _first(o, "MarketCapitalization"), "dividend_yield": _pct(_first(o, "DividendYield")),
+        "beta": _first(o, "Beta"), "target_price": _first(o, "AnalystTargetPrice"), "currency": o.get("Currency"),
+        "annual": _annual(inc.get("annualReports"), "fiscalDateEnding", "totalRevenue", "netIncome", "grossProfit", "operatingIncome", None),
+    })
 
 
 def _pct(v):
@@ -123,14 +173,14 @@ def get(sym: str, force: bool = False, fetch: bool = True) -> dict | None:
     raw = store.get_setting(cache_key)
     if raw and not force:
         cached = json.loads(raw)
-        if time.time() - cached["fetched_at"] < CACHE_SECONDS or not fetch:
+        if (time.time() - cached["fetched_at"] < CACHE_SECONDS and cached.get("v") == VERSION) or not fetch:
             return cached
     if not fetch:
         return None
     for entry in keys():  # symbole exact uniquement : « MC » sans suffixe serait une autre société
         data = _fetch(entry, sym)
-        if data and any(v is not None for v in data.values()):
-            data.update(source=entry["provider"], fetched_at=int(time.time()))
+        if data and any(v not in (None, []) for v in data.values()):
+            data.update(source=entry["provider"], fetched_at=int(time.time()), v=VERSION)
             store.set_setting(cache_key, json.dumps(data))
             return data
     return None
