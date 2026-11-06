@@ -8,6 +8,7 @@ import { useI18n, VERDICT_STYLE } from '../context';
 import { OrderModal } from './OrderModal';
 import { EnsemblePanel, notifyAiSaved, SavedAnalysesPanel } from './AiAnalysesPanel';
 import { ThesisEditor } from './ThesisEditor';
+import { ModelReliability } from './ModelReliability';
 
 type Tab = 'company' | 'risk' | 'reliability' | 'ai' | 'ensemble' | 'saved' | 'events' | 'news';
 const TABS: [Tab, typeof Building2][] = [['company', Building2], ['risk', Activity], ['reliability', ShieldCheck], ['ai', Bot],
@@ -73,10 +74,10 @@ function CompanyTab({ a }: { a: Advice }) {
         <p className="text-sm leading-relaxed">{a.summary}</p>
         {a.components && (
           <div className="flex flex-wrap gap-1.5 text-[11px]">
-            {(['valuation', 'strength', 'growth', 'quality', 'trend'] as const).map((g) => (
+            {(['valuation', 'strength', 'growth', 'quality', 'trend', 'momentum'] as const).map((g) => (
               <span key={g} className="px-2 py-0.5 rounded-full border border-slate-200 dark:border-slate-700">
                 {t[`grp_${g}`]} <b className={tone(a.components![g])}>{a.components![g] !== undefined ? `${a.components![g] > 0 ? '+' : ''}${a.components![g]}` : '–'}</b>
-                <span className="muted">/{{ valuation: 30, strength: 15, growth: 15, quality: 25, trend: 15 }[g]}</span>
+                <span className="muted">/{{ valuation: 18, strength: 15, growth: 15, quality: 25, trend: 15, momentum: 12 }[g]}</span>
               </span>
             ))}
           </div>
@@ -143,6 +144,17 @@ function CompanyTab({ a }: { a: Advice }) {
             <p className="text-[11px] muted">{t.finLimit}</p>
           </>
         )}
+        {key && (key.surprises?.length || key.recommendations || key.insiders) && (
+          <div className="rounded-lg border border-slate-200 dark:border-slate-800 p-3 text-xs space-y-1">
+            <b className="text-sm">{t.analystsTitle}</b>
+            {!!key.surprises?.length && <div>{t.surprisesLabel} : {key.surprises.map((x) => x.surprise_pct == null ? null : (
+              <span key={x.period} className={`mr-2 ${x.surprise_pct >= 0 ? 'up' : 'down'}`}>{x.period?.slice(0, 7)} {x.surprise_pct > 0 ? '+' : ''}{x.surprise_pct} %</span>))}</div>}
+            {key.recommendations && <div>{t.revisionsLabel} : {Number(key.recommendations.now.strongBuy ?? 0) + Number(key.recommendations.now.buy ?? 0)} {t.buyRatings}
+              <span className="muted"> ({t.vs3m} {Number(key.recommendations.before.strongBuy ?? 0) + Number(key.recommendations.before.buy ?? 0)})</span></div>}
+            {key.insiders && <div>{t.insidersLabel} : <span className="up">+{key.insiders.bought.toLocaleString(lang)}</span> / <span className="down">−{key.insiders.sold.toLocaleString(lang)}</span> {t.sharesLabel} ({key.insiders.days} j)</div>}
+          </div>
+        )}
+        {!key && <p className="text-[11px] muted">{t.analystsNeedKey}</p>}
         {key && (key.next_earnings || key.target_price) && (
           <div className="text-xs grid grid-cols-2 gap-2">
             <span>{t.f_earnings} : <b>{key.next_earnings ? new Date(key.next_earnings).toLocaleDateString(lang) : '–'}</b></span>
@@ -213,7 +225,10 @@ function ReliabilityTab({ a }: { a: Advice }) {
   const rel = a.reliability;
   return (
     <div className="space-y-4">
-      {rel && <p className="text-sm">{t[`relia_${rel.level}_long`].replace('{t}', String(rel.threshold))}</p>}
+      <h3 className="font-bold">{t.mvTitle}</h3>
+      <ModelReliability />
+      <h3 className="font-bold pt-2">{t.stockReplayTitle}</h3>
+      <p className="text-xs muted">{t.stockReplayHelp}</p>
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead><tr className="muted text-xs text-right"><th className="text-left py-1">{t.btHorizon}</th><th>{t.btSamples}</th><th>{t.btBase}</th>
@@ -305,22 +320,55 @@ function AiTab({ a, loading, onAi }: { a: Advice; loading: boolean; onAi: () => 
 
 function EventsTab({ a, onShowDate }: { a: Advice; onShowDate: (ts: number) => void }) {
   const { t, lang } = useI18n();
-  if (!a.events.length) return <p className="text-sm muted">{t.notEnoughHistory}</p>;
+  const ne = a.news_events ?? [];
+  const prior = (p: { mean: number; n: number; low: number | null; high: number | null } | null) =>
+    !p ? '–' : `${p.mean > 0 ? '+' : ''}${p.mean.toFixed(1)} pts (${p.n}${p.n < 20 ? ` · ${t.evFew}` : ''})`;
   return (
-    <div className="space-y-2">
-      <p className="text-xs muted">{t.eventsHelp}</p>
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-        {a.events.map((e) => (
-          <button key={e.date} onClick={() => onShowDate(Date.parse(e.date) / 1000)}
-            className="text-left text-xs p-2 rounded-lg border border-slate-200 dark:border-slate-800 hover:border-amber-400 cursor-pointer">
-            <div className="flex justify-between gap-2">
-              <span className="font-mono">{new Date(e.date).toLocaleDateString(lang)}</span>
-              <span className={e.change >= 0 ? 'up font-bold' : 'down font-bold'}>{e.change > 0 ? '+' : ''}{e.change}%</span>
-            </div>
-            {e.headlines[0] && <div className="muted truncate mt-0.5">{e.headlines[0]}</div>}
-          </button>
-        ))}
+    <div className="space-y-4">
+      <div>
+        <h3 className="font-bold">{t.evNewsTitle}</h3>
+        <p className="text-xs muted">{t.evNewsHelp}</p>
+        {!ne.length ? <p className="text-sm muted mt-1">{t.evNone}</p> : (
+          <div className="overflow-x-auto mt-1">
+            <table className="w-full text-xs">
+              <thead><tr className="muted text-right"><th className="text-left py-1">{t.evWhat}</th><th>{t.evReaction}</th><th>{t.evPrior0}</th><th>{t.evPrior60}</th><th className="text-left pl-3">{t.evReading}</th></tr></thead>
+              <tbody>
+                {ne.map((e, i) => (
+                  <tr key={i} className="border-t border-slate-200 dark:border-slate-800 text-right align-top">
+                    <td className="text-left py-1.5 max-w-md">
+                      <span className={`font-semibold ${e.direction > 0 ? 'up' : e.direction < 0 ? 'down' : ''}`}>{t[`ev_t_${e.type}` as 'ev_t_buyback'] ?? e.type}</span>
+                      <span className="muted"> · {new Date(e.timestamp * 1000).toLocaleDateString(lang)} · {e.source}</span>
+                      <a href={e.url} target="_blank" rel="noreferrer" className="block hover:text-sky-500 truncate">{e.headline}</a>
+                      {e.ai && (e.ai.magnitude || e.ai.durable || e.ai.moat) && <span className="muted">{e.ai.magnitude ?? ''}{e.ai.durable ? ` · ${t.evDurable}` : ''}{e.ai.moat ? ` · ${t.evMoat}` : ''}</span>}
+                    </td>
+                    <td className={(e.reaction ?? 0) >= 0 ? 'up' : 'down'}>{e.reaction != null ? `${e.reaction > 0 ? '+' : ''}${e.reaction} %` : '–'}</td>
+                    <td>{prior(e.prior_d0)}</td><td>{prior(e.prior_d60)}</td>
+                    <td className="text-left pl-3">{e.note ? t[`evn_${e.note}` as 'evn_priced_as_usual'] : ''}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
+      {a.events.length > 0 && (
+        <div className="space-y-2">
+          <h3 className="font-bold">{t.evShocksTitle}</h3>
+          <p className="text-xs muted">{t.eventsHelp}</p>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+            {a.events.map((e) => (
+              <button key={e.date} onClick={() => onShowDate(Date.parse(e.date) / 1000)}
+                className="text-left text-xs p-2 rounded-lg border border-slate-200 dark:border-slate-800 hover:border-amber-400 cursor-pointer">
+                <div className="flex justify-between gap-2">
+                  <span className="font-mono">{new Date(e.date).toLocaleDateString(lang)}</span>
+                  <span className={e.change >= 0 ? 'up font-bold' : 'down font-bold'}>{e.change > 0 ? '+' : ''}{e.change}%</span>
+                </div>
+                {e.headlines[0] && <div className="muted truncate mt-0.5">{e.headlines[0]}</div>}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -347,9 +395,12 @@ function DecisionCard({ a, symbol, loading, held, weight, envelope, onRefresh, o
           {notStock ? (
             <div className="rounded-lg p-3 border border-slate-300 dark:border-slate-700"><div className="font-bold">{t[`kind_${a.kind ?? 'etf'}`]}</div><div className="text-xs muted">{t.etfNoVerdict}</div></div>
           ) : rel && !rel.signal ? (
-            <div className="rounded-lg p-3 border border-slate-300 dark:border-slate-700">
-              <div className="text-lg font-extrabold">{t.noSignal}</div>
-              <div className="text-xs muted">{t[`relia_${rel.level}`]} · {t.rawVerdict} : <span className={`px-1.5 rounded ${VERDICT_STYLE[a.verdict]}`}>{a.verdict_label}</span> ({a.score > 0 ? '+' : ''}{a.score})</div>
+            <div className={`rounded-lg p-3 border ${rel.level === 'contrarian' ? 'border-rose-500/50 bg-rose-500/5' : 'border-slate-300 dark:border-slate-700 bg-slate-500/5'}`}>
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className={`font-bold px-2 py-0.5 rounded ${VERDICT_STYLE[a.verdict]} opacity-80`}>{a.verdict_label}</span>
+                <span className="text-xs muted">({a.score > 0 ? '+' : ''}{a.score}/100)</span>
+              </div>
+              <div className={`text-xs mt-1 ${rel.level === 'contrarian' ? 'down font-semibold' : 'muted'}`}>{t[`relia_${rel.level}`]}</div>
             </div>
           ) : (
             <div className="flex items-center gap-3 flex-wrap">
@@ -371,7 +422,9 @@ function DecisionCard({ a, symbol, loading, held, weight, envelope, onRefresh, o
           {envelope && (
             <div className="text-xs flex items-start gap-2"><Landmark className="w-3.5 h-3.5 mt-0.5 text-sky-500 shrink-0" />
               <span>{t.envelopeBest} <b>{envelope.label}</b>{!envelope.have && <span className="muted"> ({t.envelopeNotOpen})</span>}
-                {' — '}{envelope.reasons.map((r) => t[`env_${r}` as 'env_pea_eligible']).filter(Boolean).join(' ')}</span>
+                {' — '}{envelope.reasons.map((r) => t[`env_${r}` as 'env_pea_eligible']).filter(Boolean).join(' ')}
+                {envelope.withholding && envelope.withholding.default > 0 && <span className="muted"> {t.whNote.replace('{d}', String(envelope.withholding.default))
+                  .replace('{t}', String(envelope.withholding.treaty)).replace('{r}', String(envelope.withholding.reclaimable)).replace('{f}', envelope.withholding.form ?? '–')}</span>}</span>
             </div>
           )}
           <div className="flex flex-wrap gap-2">
@@ -442,7 +495,8 @@ export function AnalysisSection({ symbol, chart, news, onAdvice, onShowDate }: P
             <button key={k} onClick={() => choose(k)}
               className={`flex items-center gap-1.5 px-3 py-3 text-sm whitespace-nowrap cursor-pointer border-b-2 -mb-px ${tab === k ? 'border-sky-500 text-sky-600 dark:text-sky-400 font-semibold' : 'border-transparent muted hover:text-slate-900 dark:hover:text-white'}`}>
               <Icon className="w-4 h-4" />{t[`tab_${k}`]}
-              {k === 'reliability' && advice?.reliability && <span className={`w-2 h-2 rounded-full ${advice.reliability.signal ? 'bg-emerald-500' : 'bg-amber-500'}`} />}
+              {k === 'reliability' && advice?.reliability && <span className={`w-2 h-2 rounded-full ${advice.reliability.signal ? 'bg-emerald-500'
+                : advice.reliability.level === 'contrarian' ? 'bg-rose-500' : 'bg-slate-400'}`} />}
             </button>
           ))}
         </div>

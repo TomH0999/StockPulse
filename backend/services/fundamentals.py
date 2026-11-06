@@ -16,10 +16,10 @@ PROVIDERS = {
     "alphavantage": "https://www.alphavantage.co/support/#api-key",
 }
 CACHE_SECONDS = 7 * 86400
-VERSION = 2  # cache des versions précédentes (moins de champs) rechargé
+VERSION = 3  # cache des versions précédentes (moins de champs) rechargé
 FIELDS = ("pe", "forward_pe", "pb", "net_margin", "gross_margin", "operating_margin", "roe", "debt_to_equity",
           "revenue", "net_income", "revenue_growth", "earnings_growth", "eps", "market_cap", "dividend_yield", "beta",
-          "target_price", "currency", "next_earnings", "next_dividend", "annual")
+          "target_price", "currency", "next_earnings", "next_dividend", "annual", "surprises", "recommendations", "insiders")
 
 
 def _full(d: dict) -> dict:
@@ -82,7 +82,9 @@ def _fmp(key, sym):
     if not ratios and not metrics:
         return None
     today = date.today().isoformat()
-    earnings = [e for e in _get(f"{base}/earnings", symbol=sym, apikey=key) or [] if e.get("date", "") >= today]
+    all_earnings = _get(f"{base}/earnings", symbol=sym, apikey=key) or []
+    earnings = [e for e in all_earnings if e.get("date", "") >= today]
+    past = [e for e in all_earnings if e.get("date", "") < today and _num(e.get("epsActual")) is not None][:4]
     divs = [d for d in _get(f"{base}/dividends", symbol=sym, apikey=key) or [] if d.get("date", "") >= today]
     profile = (_get(f"{base}/profile", symbol=sym, apikey=key) or [{}])[0]
     income = _get(f"{base}/income-statement", symbol=sym, limit=5, apikey=key) or []
@@ -104,7 +106,40 @@ def _fmp(key, sym):
         "currency": (income[0].get("reportedCurrency") if income else None) or profile.get("currency"), "annual": annual,
         "next_earnings": min((e["date"] for e in earnings), default=None),
         "next_dividend": min(({"date": d["date"], "amount": d.get("dividend")} for d in divs), key=lambda d: d["date"], default=None),
+        "surprises": [_surprise(e.get("date"), _num(e.get("epsActual")), _num(e.get("epsEstimated"))) for e in past],
     })
+
+
+def _surprise(period, actual, estimate):
+    """Surprise de résultats : BPA publié contre BPA attendu par les analystes."""
+    pct = round((actual - estimate) / abs(estimate) * 100, 1) if actual is not None and estimate not in (None, 0) else None
+    return {"period": period, "actual": actual, "estimate": estimate, "surprise_pct": pct}
+
+
+def _finnhub_extras(key, sym) -> dict:
+    """Surprises de résultats, évolution des recommandations d'analystes (révisions) et achats / ventes des dirigeants."""
+    out = {}
+    try:
+        out["surprises"] = [_surprise(e.get("period"), _num(e.get("actual")), _num(e.get("estimate")))
+                            for e in (_get("https://finnhub.io/api/v1/stock/earnings", symbol=sym, token=key) or [])[:4]]
+    except Exception:
+        pass
+    try:
+        rec = _get("https://finnhub.io/api/v1/stock/recommendation", symbol=sym, token=key) or []
+        pick = lambda r: {k: r.get(k) for k in ("period", "strongBuy", "buy", "hold", "sell", "strongSell")}  # noqa: E731
+        if rec:
+            out["recommendations"] = {"now": pick(rec[0]), "before": pick(rec[min(3, len(rec) - 1)])}
+    except Exception:
+        pass
+    try:
+        since = (date.today() - timedelta(days=90)).isoformat()
+        tx = (_get("https://finnhub.io/api/v1/stock/insider-transactions", symbol=sym, token=key, **{"from": since}) or {}).get("data") or []
+        buys = sum(t.get("change") or 0 for t in tx if (t.get("change") or 0) > 0)
+        sells = -sum(t.get("change") or 0 for t in tx if (t.get("change") or 0) < 0)
+        out["insiders"] = {"bought": buys, "sold": sells, "transactions": len(tx), "days": 90}
+    except Exception:
+        pass
+    return out
 
 
 def _finnhub(key, sym):
@@ -124,6 +159,7 @@ def _finnhub(key, sym):
         "market_cap": cap * 1e6 if cap else None,  # Finnhub : en millions
         "dividend_yield": _first(m, "currentDividendYieldTTM", "dividendYieldIndicatedAnnual"), "beta": _first(m, "beta"),
         "next_earnings": min((e["date"] for e in cal.get("earningsCalendar") or []), default=None),
+        **_finnhub_extras(key, sym),
     })
 
 

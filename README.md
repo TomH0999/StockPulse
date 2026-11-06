@@ -22,9 +22,11 @@ Pensé pour l'investisseur de long terme (10 à 30 ans) : comprendre des entrepr
   société, VE/EBIT, dette nette/EBITDA, croissance), qualité et régularité (25 pts : ROIC, régularité des marges, dilution,
   historique du dividende), tendance de fond (15 pts : moyenne 200 jours). Seuils propres aux banques, assurances et foncières.
   Comptes publiés récupérés **sans clé**, y compris pour les valeurs européennes (4 derniers exercices).
-- **Fiabilité honnête** : le moteur affiché est rejoué chaque mois (avec les seuls comptes publiés à la date) et comparé à un ETF
-  MSCI World dividendes réinvestis à 1, 3 et 5 ans ; l'avantage est mesuré par rapport au taux de base. « Pas de signal fiable »
-  quand le conseil ne bat pas le hasard sur la valeur.
+- **Fiabilité prouvée ou non** : chaque mois, toutes les valeurs sont classées par le moteur affiché (comptes connus à la date) ;
+  corrélation de rang avec le rendement des 12 mois suivants, quintiles, face au STOXX Europe 600 et au MSCI World, avec un
+  intervalle de confiance honnête. Gris « non mesurable » tant que l'intervalle contient 0 (c'est le cas aujourd'hui).
+- **Actualités en faits** : événements classés (résultats, prévisions, rachats, dividende, litiges…), étude d'événements sur
+  l'archive et test « déjà dans les prix ? » ; surprises de résultats, révisions d'analystes et achats des dirigeants (clé Finnhub).
 - **L'IA explique, elle ne décide pas** : lecture séparée (avec contrôle des chiffres cités), analyses groupées, scénarios corrigés.
 - **Comptes** : PEA, PEA-PME (plafond commun 225 000 €), PEA jeune, compte-titres, assurance-vie ; fiscalité 2026 simulée
   (prélèvements sociaux 18,6 %, PFU 31,4 %, moins-values reportables 10 ans), échéance des 5 ans, enveloppe conseillée par titre.
@@ -66,7 +68,7 @@ chez votre courtier (ISIN, quantité, limite, validité, stop facultatif), puis 
 
 ## Tests
 
-`cd backend && pip install -r requirements-dev.txt && python -m pytest -q tests` (136 tests, sans réseau).
+`cd backend && pip install -r requirements-dev.txt && python -m pytest -q tests` (150 tests, sans réseau).
 
 ## Catalogue
 

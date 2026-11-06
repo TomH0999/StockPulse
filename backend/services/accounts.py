@@ -123,4 +123,6 @@ def envelope(entry: dict | None, symbol: str) -> dict:
             reasons.append("us_w8ben")
         elif kind == "stock":
             reasons.append("foreign_withholding")
-    return {"recommended": best, "label": TYPES[best]["label"], "have": best in have, "reasons": reasons}
+    from services import taxes  # import tardif
+    wh = taxes.withholding((entry or {}).get("country")) if best == "CTO" and kind == "stock" else None
+    return {"recommended": best, "label": TYPES[best]["label"], "have": best in have, "reasons": reasons, "withholding": wh}

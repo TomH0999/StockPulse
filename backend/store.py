@@ -85,6 +85,8 @@ def init():
             sell_if TEXT, created_at INTEGER, reviewed_at INTEGER, next_review TEXT, UNIQUE (account, symbol))""")
         if "ai_sentiment" not in cols:
             conn.execute("ALTER TABLE articles ADD COLUMN ai_sentiment TEXT")
+        if "ai_event" not in cols:  # extraction structurée par l'IA (type d'événement, ampleur, durable, effet sur l'avantage concurrentiel)
+            conn.execute("ALTER TABLE articles ADD COLUMN ai_event TEXT")
         if _fresh_install:  # seule l'archive d'articles est partagée : PEA, favoris, clés et réglages propres à chaque machine
             for t in PERSONAL_TABLES:
                 conn.execute(f"DELETE FROM {t}")

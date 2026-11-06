@@ -11,6 +11,16 @@ PS_AV = 17.2
 PFU = round(IR + PS, 1)  # 31,4 %
 SOURCE = "LFSS 2026 (loi n° 2025-1403 du 30/12/2025) : prélèvements sociaux 18,6 % (17,2 % en assurance-vie), PFU 31,4 %"
 US_WITHHOLDING = 15.0  # retenue à la source américaine sur les dividendes avec le formulaire W-8BEN (convention France / États-Unis)
+# Retenues à la source sur les dividendes étrangers (compte-titres) : taux appliqué par défaut / taux de la convention avec la
+# France, imputable en crédit d'impôt. L'excédent se récupère par une procédure propre à chaque pays (formulaires, délais).
+# Ordres de grandeur à vérifier auprès du courtier (taux par défaut souvent prélevés sans formulaire préalable).
+WITHHOLDING = {
+    "US": (30.0, 15.0, "W-8BEN"), "CH": (35.0, 15.0, "formulaire 86"), "DE": (26.375, 15.0, "Bundeszentralamt für Steuern"),
+    "NL": (15.0, 15.0, None), "ES": (19.0, 15.0, "formulaire 210"), "IT": (26.0, 15.0, "modulo B"), "BE": (30.0, 15.0, "formulaire 276"),
+    "DK": (27.0, 15.0, "formulaire 06.003"), "SE": (30.0, 15.0, "SKV 3740"), "NO": (25.0, 15.0, "Skatteetaten"), "FI": (35.0, 15.0, "formulaire 6163"),
+    "IE": (25.0, 15.0, "formulaire V2"), "PT": (25.0, 15.0, "formulaire 21-RFI"), "AT": (27.5, 15.0, "ZS-RD1"), "GB": (0.0, 0.0, None),
+    "CA": (25.0, 15.0, "NR301"), "JP": (15.315, 10.0, None), "FR": (0.0, 0.0, None),
+}
 LOSS_CARRY_YEARS = 10
 
 
@@ -64,5 +74,18 @@ def cto_year(realized_by_year: dict[int, float], dividends_by_year: dict[int, fl
             "losses_carried": [{"year": y, "amount": round(a, 2), "expires": y + LOSS_CARRY_YEARS} for y, a in carry]}
 
 
+def withholding(country: str | None) -> dict | None:
+    """Retenue à la source sur les dividendes d'une société étrangère détenue en compte-titres."""
+    w = WITHHOLDING.get((country or "").upper())
+    if not w:
+        return None
+    default, treaty, form = w
+    return {"country": country, "default": default, "treaty": treaty, "credit": min(treaty, IR), "reclaimable": round(max(0.0, default - treaty), 3),
+            "form": form}
+
+
 def rates() -> dict:
-    return {"ir": IR, "ps": PS, "ps_av": PS_AV, "pfu": PFU, "us_withholding": US_WITHHOLDING, "source": SOURCE}
+    return {"ir": IR, "ps": PS, "ps_av": PS_AV, "pfu": PFU, "us_withholding": US_WITHHOLDING, "source": SOURCE,
+            "av_note": "Assurance-vie après 8 ans : abattement annuel de 4 600 € (9 200 € pour un couple) et 7,5 % seulement jusqu'à "
+                       "150 000 € de primes (12,8 % au-delà) : non simulés ici, l'impôt affiché est un maximum.",
+            "pea_note": "Gains acquis avant 2018 sur un PEA : taux historiques de prélèvements sociaux non simulés."}

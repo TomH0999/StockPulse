@@ -72,9 +72,30 @@ def _catalog_loop():
         time.sleep(3600)
 
 
+WEEK = 7 * 86400
+
+
+def _measure_loop():
+    """Chaque semaine : fiabilité du modèle en coupe transversale et étude d'événements d'actualité (sans IA)."""
+    import json
+    from services import events, insights, validation, yahoo
+    time.sleep(600)
+    while True:
+        try:
+            last = (validation.latest() or {})
+            if last.get("engine_version") != advisor.ENGINE_VERSION or time.time() - (last.get("computed_at") or 0) > WEEK:
+                status["validation"] = validation.refresh().get("status")
+            if time.time() - ((events.latest_study() or {}).get("computed_at") or 0) > WEEK:
+                res = events.study(yahoo.daily_history, lambda sym: yahoo.daily_history(insights.benchmark(sym)[0]))
+                store.set_setting("event_study", json.dumps(res))
+        except Exception as e:
+            status["last_error"] = f"Mesures : {str(e)[:150]}"
+        time.sleep(6 * 3600)
+
+
 def start():
     # Analyse IA uniquement à la demande de l'utilisateur (quotas gratuits) : pas de boucle IA automatique
-    for target in (_snapshot_loop, _local_loop, _catalog_loop):
+    for target in (_snapshot_loop, _local_loop, _catalog_loop, _measure_loop):
         threading.Thread(target=target, daemon=True).start()
 
 

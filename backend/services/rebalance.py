@@ -23,7 +23,7 @@ def conviction(adv: dict | None) -> float:
         return 0.8
     if adv["verdict"] == "SELL":
         return 0.0
-    # pente modérée : la calibration sur 5 ans (tools/calibrate.py) ne montre pas de pouvoir prédictif stable du score
+    # pente modérée : la mesure en coupe transversale (services/validation.py) ne prouve pas de pouvoir prédictif du score
     c = 1 + adv["score"] / 100 * CONF.get(adv.get("confidence"), 0.8) * 0.8
     if adv.get("edge_1y") is not None:
         c *= 1 + max(-0.25, min(0.15, adv["edge_1y"] / 100))  # conseils qui n'ont pas battu le MSCI World : pris avec prudence

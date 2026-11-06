@@ -49,3 +49,57 @@ def list_for(symbol: str, price: float | None = None, limit: int = 50) -> list[d
 def delete(analysis_id: int):
     with store.connect() as conn:
         conn.execute("DELETE FROM ai_analyses WHERE id = ?", (analysis_id,))
+
+
+# --- Précision mesurée de l'IA (score de Brier) -----------------------------------------------------------------------
+# On ne peut pas tester l'IA sur le passé (le modèle connaît la suite) : seule la mesure en temps réel vaut. Chaque
+# probabilité « battre son indice à 12 mois » enregistrée est comparée, à l'échéance, à ce qui s'est passé face à CW8.
+BRIER_COIN = 0.25        # score d'une probabilité toujours égale à 50 %
+MIN_BRIER_SAMPLES = 30   # avant : correction par défaut (moitié du chemin vers 50 %)
+_brier_cache: dict = {}
+
+
+def brier(now: float | None = None, fetch_hist=None) -> dict:
+    """Score de Brier des probabilités de l'IA arrivées à échéance (plus bas = meilleur ; 0,25 = pile ou face)."""
+    now = now or time.time()
+    if _brier_cache.get("at", 0) > now - 3600 and fetch_hist is None:
+        return _brier_cache["value"]
+    if fetch_hist is None:
+        from services import yahoo
+        fetch_hist = yahoo.daily_history
+    with store.connect() as conn:
+        rows = [dict(r) for r in conn.execute("SELECT symbol, created_at, price, payload FROM ai_analyses WHERE kind = 'single' AND created_at <= ?",
+                                              (int(now - 365 * 86400),))]
+    pairs = []
+    try:
+        world = fetch_hist("CW8.PA")
+    except Exception:
+        world = []
+    from services.advisor import _series_at
+    w_at = _series_at(world) if world else None
+    for r in rows:
+        p = ((json.loads(r["payload"]).get("outlook") or {}).get("prob_outperform"))
+        if p is None or not r["price"] or not w_at:
+            continue
+        try:
+            at = _series_at(fetch_hist(r["symbol"]))
+        except Exception:
+            continue
+        s1, w0, w1 = at(r["created_at"] + 365 * 86400), w_at(r["created_at"]), w_at(r["created_at"] + 365 * 86400)
+        if not (s1 and w0 and w1):
+            continue
+        outcome = 1.0 if s1 / r["price"] > w1 / w0 else 0.0
+        pairs.append((p / 100, outcome))
+    value = {"n": len(pairs), "brier": round(sum((p - o) ** 2 for p, o in pairs) / len(pairs), 4) if pairs else None,
+             "coin": BRIER_COIN}
+    _brier_cache.update(at=now, value=value)
+    return value
+
+
+def measured_shrink(default: float = 0.5) -> float:
+    """Part de l'avis de l'IA conservée : réglée sur sa précision mesurée dès qu'il y a assez d'échéances."""
+    b = brier()
+    if not b["brier"] or b["n"] < MIN_BRIER_SAMPLES:
+        return default
+    skill = 1 - b["brier"] / BRIER_COIN  # 0 = pas mieux que pile ou face ; 1 = parfait
+    return round(max(0.0, min(1.0, skill * 4)), 2)

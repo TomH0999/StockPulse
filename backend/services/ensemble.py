@@ -13,7 +13,9 @@ from concurrent.futures import ThreadPoolExecutor
 
 from services import advisor, ai_pool, ai_store, news, portfolio, yahoo
 
-SIZES = (1, 10, 25, 50, 100)
+# 10 au plus : des réponses répétées du même modèle mesurent sa constance (« stabilité »), pas sa justesse ;
+# au-delà, on dépense du quota pour une fausse impression de solidité
+SIZES = (1, 5, 10)
 VERDICT_VALUE = {"STRONG_BUY": 2, "BUY": 1, "HOLD": 0, "REDUCE": -1, "SELL": -2}
 _jobs: dict[str, dict] = {}
 _STOP = set("""a au aux avec ce ces dans de des du en et est il la le les leur leurs mais ne ou par pas pour plus qui que sa se ses
@@ -80,8 +82,8 @@ def aggregate(results: list[dict], lang: str = "fr") -> dict:
         "catalysts": themes([r.get("catalysts") for r in results], n, 4),
         "summary": min((r for r in results if r["verdict"] == majority), key=lambda r: abs(r["score"] - mean)).get("summary", ""),
         "engines": dict(Counter(r["engine"] for r in results)),
-        # Conseil retenu seulement si au moins 10 analyses et 70 % d'accord ; sinon « incertain »
-        "retained": n >= 10 and agreement >= 70,
+        # Lecture stable si au moins 5 analyses et 70 % d'accord ; la justesse, elle, ne se mesure qu'à l'échéance
+        "retained": n >= 5 and agreement >= 70,
         "outlook": _outlook([r.get("outlook") for r in results]),
     }
 

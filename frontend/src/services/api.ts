@@ -96,6 +96,9 @@ export interface Advice {
   kind?: InstrumentKind;
   leveraged?: boolean;
   sector?: string | null;
+  news_events?: NewsEvent[];
+  broken?: string[];
+  momentum_12_1?: number | null;
   verification: { status: 'verified' | 'warning'; checked: number; unverified: string[]; notes: string[]; local_score: number } | null;
   generated_at: number;
   articles_analyzed: number;
@@ -284,6 +287,9 @@ export interface Fundamentals {
   eps?: number | null; market_cap?: number | null; dividend_yield?: number | null; beta?: number | null; target_price?: number | null;
   currency?: string | null;
   annual?: { year: string; revenue: number | null; net_income: number | null; gross_profit: number | null; operating_income: number | null; eps: number | null }[];
+  surprises?: { period: string; actual: number | null; estimate: number | null; surprise_pct: number | null }[];
+  recommendations?: { now: Record<string, number | string>; before: Record<string, number | string> };
+  insiders?: { bought: number; sold: number; transactions: number; days: number };
 }
 export interface RiskInfo { volatility: number; downside_volatility: number; max_drawdown_5y: number; bad_year: number | null;
   worst_month: number | null; beta: number | null; level: 'low' | 'medium' | 'high' | 'very_high'; max_weight: number }
@@ -293,7 +299,8 @@ export type AccountType = 'PEA' | 'PEA_PME' | 'PEA_JEUNE' | 'CTO' | 'AV';
 export interface Account { id: string; type: AccountType; name: string; label: string; ceiling: number | null; ceiling_left: number | null; pea_rules: boolean }
 export interface Thesis { id: number; account: string; symbol: string; thesis: string; fair_value: number | null; sell_if: string;
   created_at: number; reviewed_at: number | null; next_review: string }
-export interface Envelope { recommended: AccountType; label: string; have: boolean; reasons: string[] }
+export interface Envelope { recommended: AccountType; label: string; have: boolean; reasons: string[];
+  withholding?: { country: string; default: number; treaty: number; credit: number; reclaimable: number; form: string | null } | null }
 export interface Financials {
   years: number; first_year?: string; last_year?: string; financial_sector: boolean; currency?: string | null;
   revenue?: number | null; net_income?: number | null; free_cash_flow?: number | null; ebitda?: number | null; market_cap?: number | null;
@@ -308,13 +315,23 @@ export interface Financials {
   annual?: { year: string; revenue: number | null; operating_income: number | null; net_income: number | null; free_cash_flow: number | null;
     eps: number | null; roic: number | null }[];
 }
+export interface CI { mean: number; low: number; high: number; months: number; independent: number }
+export interface ModelValidation { computed_at: number; universe: number; months: number; status: 'positive' | 'negative' | 'inconclusive' | 'unknown';
+  ic: CI | null; quintile_spread: CI | null; top_vs_universe: CI | null; top_vs_world: CI | null; top_vs_stoxx600: CI | null;
+  components: Record<string, CI | null>; by_verdict: Record<string, { n: number; excess_vs_universe: number; beat_share: number }> }
+export interface NewsEvent { type: string; direction: number; headline: string; url: string; source: string; timestamp: number;
+  reaction: number | null; since: Record<string, number> | null; prior_d0: { mean: number; n: number; low: number | null; high: number | null } | null;
+  prior_d60: { mean: number; n: number; low: number | null; high: number | null } | null; note: string | null;
+  ai: { type: string | null; magnitude: string | null; durable: boolean; moat: boolean; eps_impact_pct: number | null } | null }
 export interface BacktestStats { n: number; engine: 'full' | 'trend_only'; base: number | null; buy_n: number; buy_hit: number | null;
   sell_n: number; sell_hit: number | null; edge: number | null; avg_excess_buy: number | null; avg_excess_all: number | null }
 export interface AiView { verdict: Verdict; verdict_label: string; score: number; confidence: 'low' | 'medium' | 'high'; horizon: string | null;
   summary: string; opportunities: string[]; threats: string[]; patterns: string[]; catalysts: string[]; provider: string;
   articles_analyzed: number; outlook: Outlook | null; generated_at: number;
   verification: { status: 'verified' | 'warning'; checked: number; unverified: string[]; notes: string[]; local_score: number } | null }
-export interface Reliability { level: 'reliable' | 'weak' | 'contrarian' | 'insufficient'; signal: boolean; reasons: string[]; threshold: number }
+export interface Reliability { level: 'reliable' | 'inconclusive' | 'contrarian' | 'insufficient'; signal: boolean; reasons: string[];
+  model_ic: number | null; model_ic_low: number | null; model_ic_high: number | null; model_months: number | null; model_universe: number | null;
+  stock_edge: number | null }
 export interface HealthScores { profitability: number | null; growth: number | null; solidity: number | null; valuation: number | null;
   regularity?: number | null;
   overall: number | null; criteria: number }
@@ -358,7 +375,7 @@ export interface PortfolioAnalysis {
     sectors: Record<string, number>;
     countries: Record<string, number>;
     warnings: { code: string; [k: string]: unknown }[];
-    rebalance: Rebalance;
+    rebalance: Rebalance; look_through?: boolean; broad_etf_weight?: number;
   };
   benchmark: { index: string; series: { day: string; portfolio: number; index: number }[] };
 }
@@ -416,6 +433,7 @@ export const api = {
     (await apiClient.post<{ rows: ImportRow[]; valid: number; errors: number; added?: number; columns: Record<string, string> }>('/portfolio/import', { content, commit })).data,
   peaHistory: () => get<{ points: HistoryPoint2[]; benchmarks: string[]; performance?: number; benchmark_performance?: Record<string, number | null>;
     xirr?: number | null; world?: { value: number | null; xirr: number | null; difference: number | null } | null }>('/portfolio/history'),
+  modelValidation: () => get<{ model: ModelValidation | null; ai: { n: number; brier: number | null; coin: number }; ai_shrink: number }>('/model/validation'),
   accounts: () => get<{ accounts: Account[]; types: Record<AccountType, string> }>('/accounts'),
   createAccount: async (type: AccountType, name: string) => (await apiClient.post<Account>('/accounts', { type, name })).data,
   renameAccount: async (id: string, name: string) => (await apiClient.put<Account>(`/accounts/${id}`, { name })).data,

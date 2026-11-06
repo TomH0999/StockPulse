@@ -91,6 +91,8 @@ def plan(symbol: str, side: str, amount: float | None = None, quantity: float | 
     if side == "buy":
         if accounts.eligible(acc["type"], info) is False:
             warnings.append("not_pea")
+        elif acc["pea_rules"] and info.get("pea_source") == "listing":
+            warnings.append("pea_to_confirm")  # éligibilité déduite de la place de cotation (pas d'ISIN)
         if info.get("leveraged"):
             warnings.append("leveraged")
         if adv and adv["verdict"] not in ("BUY", "STRONG_BUY"):

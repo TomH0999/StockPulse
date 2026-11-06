@@ -67,6 +67,7 @@ export function PortfolioAnalysisPanel({ version, onOpen }: { version: number; o
           <h2 className="font-bold">{t.diversification}</h2>
           <div className="label">{t.bySector}</div><Bars data={d.sectors} />
           <div className="label">{t.byCountry}</div><Bars data={d.countries} />
+          {d.look_through && <p className="text-[11px] muted">{t.etfApprox}</p>}
         </div>
       </div>
 

@@ -12,10 +12,10 @@ from datetime import datetime, timezone
 
 import catalog
 import store
+from services import events as newsevents  # événements d'actualité (≠ events() : chocs de cours)
 from services import ai_pool, ai_store, financials, fundamentals, insights, news, portfolio, yahoo
 
 CACHE_SECONDS = 3600
-# Pondération des composantes du score local, calibrée sur l'historique réel (tools/calibrate.py)
 VERDICTS = ["SELL", "REDUCE", "HOLD", "BUY", "STRONG_BUY"]
 
 T = {
@@ -33,6 +33,14 @@ T = {
         "fin_cheap": "PER de {pe:.0f} pour une rentabilité des fonds propres de {roe:.0f} % : valorisation modérée.",
         "debt_low": "Bilan solide : dette nette / EBITDA de {v:.1f}.",
         "net_cash": "Trésorerie supérieure à la dette (trésorerie nette) : bilan très solide.",
+        "pe_norm_cheap": "Secteur cyclique : PER de {v:.0f} sur le bénéfice moyen des derniers exercices (et non le dernier) : valorisation modérée.",
+        "pe_norm_rich": "Secteur cyclique : PER de {v:.0f} sur le bénéfice moyen des derniers exercices : valorisation exigeante.",
+        "value_trap": "Valorisation basse ignorée : cours sous sa moyenne 200 jours et bénéfices en baisse (risque de piège à valeur).",
+        "eps_declining": "Bénéfice par action en baisse {n} années de suite.",
+        "roic_declining": "Rentabilité du capital (ROIC) en baisse {n} années de suite.",
+        "thesis_broken": "Thèse fragilisée ({n} signal(s) : ROIC ou bénéfices en baisse continue, dette excessive, dilution qui s'accélère) : pas d'achat, envisager d'alléger.",
+        "mom_rel_up": "Fait mieux que le MSCI World de {v:+.0f} points sur 12 mois (hors dernier mois).",
+        "mom_rel_dn": "Fait moins bien que le MSCI World de {a:.0f} points sur 12 mois (hors dernier mois).",
         "debt_high": "Endettement élevé : dette nette / EBITDA de {v:.1f}.",
         "cover_low": "Couverture des intérêts faible ({v:.1f} fois).",
         "growth_up": "Chiffre d'affaires en croissance de {v:+.1f} % par an sur {n} exercices.",
@@ -74,6 +82,14 @@ T = {
         "fin_cheap": "P/E of {pe:.0f} for a {roe:.0f}% return on equity: moderate valuation.",
         "debt_low": "Strong balance sheet: net debt / EBITDA of {v:.1f}.",
         "net_cash": "More cash than debt (net cash): very strong balance sheet.",
+        "pe_norm_cheap": "Cyclical sector: P/E of {v:.0f} on average earnings of recent years (not the last one): moderate valuation.",
+        "pe_norm_rich": "Cyclical sector: P/E of {v:.0f} on average earnings of recent years: demanding valuation.",
+        "value_trap": "Low valuation ignored: price below its 200-day average and falling earnings (value-trap risk).",
+        "eps_declining": "EPS down {n} years in a row.",
+        "roic_declining": "Return on invested capital (ROIC) down {n} years in a row.",
+        "thesis_broken": "Weakened thesis ({n} signal(s): steadily falling ROIC or earnings, excessive debt, accelerating dilution): no buy, consider trimming.",
+        "mom_rel_up": "Beat the MSCI World by {v:+.0f} points over 12 months (excluding the last month).",
+        "mom_rel_dn": "Lagged the MSCI World by {a:.0f} points over 12 months (excluding the last month).",
         "debt_high": "High leverage: net debt / EBITDA of {v:.1f}.",
         "cover_low": "Weak interest coverage ({v:.1f}x).",
         "growth_up": "Revenue growing {v:+.1f}% a year over {n} years.",
@@ -103,8 +119,11 @@ T = {
     },
 }
 LANG_NAMES = {"fr": "French", "en": "English"}
-# Pondération long terme (points maximum) : 60 fondamentaux et valorisation, 25 qualité et régularité, 15 tendance de fond
-GROUPS = {"valuation": 30, "strength": 15, "growth": 15, "quality": 25, "trend": 15}
+# Pondération long terme (points maximum) : 48 fondamentaux et valorisation (valorisation 18, bilan 15, croissance 15),
+# 25 qualité et régularité, 27 tendance (moyenne 200 jours 15, force relative 12 mois hors dernier mois 12).
+# Mesures en coupe transversale (tools/validate.py) : la tendance et le momentum 12-1 sont les signaux qui ont le plus
+# aidé ; une valorisation basse seule a acheté des entreprises en déclin (garde-fou « valeur + tendance »).
+GROUPS = {"valuation": 18, "momentum": 12, "strength": 15, "growth": 15, "quality": 25, "trend": 15}
 
 TOPICS = {
     "earnings": (r"earnings|results|quarter|résultats|trimestre|revenue|chiffre d'affaires", 0),
@@ -231,75 +250,91 @@ def _clamp(v, m):
     return max(-m, min(m, v))
 
 
-def score_financials(m: dict | None, L: dict, opp: list, thr: list, pat: list) -> dict:
-    """Points par groupe (valorisation, solidité, croissance, qualité) à partir des comptes ; groupes sans donnée absents."""
-    parts = {}
+def score_financials(m: dict | None, L: dict, opp: list, thr: list, pat: list, trend_up: bool | None = None) -> tuple[dict, list]:
+    """Points par groupe (valorisation, solidité, croissance, qualité) et signaux de thèse cassée (verdict « Alléger »).
+    Garde-fou « valeur + tendance » : une valorisation basse ne rapporte des points que si le cours est au-dessus de sa
+    moyenne 200 jours ou si le bénéfice par action ne baisse pas (sinon c'est le piège classique : PER bas au sommet du cycle
+    ou d'une entreprise qui décline). Secteurs cycliques : PER et free cash-flow moyens des exercices disponibles."""
+    parts, broken = {}, []
     if not m or not m.get("years"):
-        return parts
+        return parts, broken
     fin = m.get("financial_sector")
-    v = 0.0
+    run = 3 if m.get("cyclical") else 2  # dans un secteur cyclique, deux années de baisse sont le cycle, pas une thèse cassée
+    eps_falling = (m.get("eps_change") is not None and m["eps_change"] < -10) or m.get("eps_declines", 0) >= 2
+    value_ok = trend_up is True or not eps_falling
+    cyc = m.get("cyclical")
+    fcf_y = m.get("fcf_yield_normalized") if cyc and m.get("fcf_yield_normalized") is not None else m.get("fcf_yield")
+    v, neg = 0.0, 0.0  # points positifs (soumis au garde-fou) et négatifs (toujours comptés)
     seen = False
-    if not fin and m.get("fcf_yield") is not None and m.get("free_cash_flow") is not None:
+    if not fin and fcf_y is not None and m.get("free_cash_flow") is not None:
         seen = True
-        y = m["fcf_yield"]
-        if m["free_cash_flow"] < 0:
-            v -= 10; thr.append(L["fcf_neg"])
-        elif y >= 6:
-            v += 12; opp.append(L["fcf_high"].format(v=y))
-        elif y >= 4:
-            v += 6; opp.append(L["fcf_high"].format(v=y))
-        elif y < 2:
-            v -= 6; thr.append(L["fcf_low"].format(v=y))
+        if fcf_y < 0:
+            neg -= 8; thr.append(L["fcf_neg"])
+        elif fcf_y >= 6:
+            v += 8; opp.append(L["fcf_high"].format(v=fcf_y))
+        elif fcf_y >= 4:
+            v += 4; opp.append(L["fcf_high"].format(v=fcf_y))
+        elif fcf_y < 2:
+            neg -= 4; thr.append(L["fcf_low"].format(v=fcf_y))
     if m.get("pe_loss"):
         seen = True
-        v -= 10; thr.append(L["pe_loss"])
+        neg -= 8; thr.append(L["pe_loss"])
+    elif cyc and m.get("pe_normalized"):
+        seen = True
+        pn = m["pe_normalized"]
+        if pn < 10:
+            v += 6; opp.append(L["pe_norm_cheap"].format(v=pn))
+        elif pn > 25:
+            neg -= 6; thr.append(L["pe_norm_rich"].format(v=pn))
     elif m.get("pe") and m.get("pe_history_median"):
         seen = True
         r = m["pe"] / m["pe_history_median"]
         if r < 0.8:
-            v += 10; opp.append(L["pe_cheap"].format(pe=m["pe"], m=m["pe_history_median"]))
+            v += 6; opp.append(L["pe_cheap"].format(pe=m["pe"], m=m["pe_history_median"]))
         elif r < 0.95:
-            v += 5; opp.append(L["pe_cheap"].format(pe=m["pe"], m=m["pe_history_median"]))
+            v += 3; opp.append(L["pe_cheap"].format(pe=m["pe"], m=m["pe_history_median"]))
         elif r > 1.25:
-            v -= 10; thr.append(L["pe_rich"].format(pe=m["pe"], m=m["pe_history_median"]))
+            neg -= 6; thr.append(L["pe_rich"].format(pe=m["pe"], m=m["pe_history_median"]))
         elif r > 1.05:
-            v -= 5; thr.append(L["pe_rich"].format(pe=m["pe"], m=m["pe_history_median"]))
-    if m.get("ev_ebit"):
+            neg -= 3; thr.append(L["pe_rich"].format(pe=m["pe"], m=m["pe_history_median"]))
+    if m.get("ev_ebit") and not cyc:
         seen = True
         e = m["ev_ebit"]
         if e < 10:
-            v += 8; opp.append(L["ev_low"].format(v=e))
-        elif e < 15:
-            v += 4
+            v += 4; opp.append(L["ev_low"].format(v=e))
         elif e > 25:
-            v -= 6; thr.append(L["ev_high"].format(v=e))
+            neg -= 4; thr.append(L["ev_high"].format(v=e))
     if fin and m.get("pe") and m.get("roe_avg") is not None and m["pe"] < 10 and m["roe_avg"] >= 10:
         seen = True  # banque / assurance : PER bas avec une rentabilité des fonds propres correcte
-        v += 8; opp.append(L["fin_cheap"].format(pe=m["pe"], roe=m["roe_avg"]))
+        v += 6; opp.append(L["fin_cheap"].format(pe=m["pe"], roe=m["roe_avg"]))
     if seen:
-        parts["valuation"] = _clamp(v, GROUPS["valuation"])
+        if v > 0 and not value_ok:
+            thr.append(L["value_trap"])
+            v = 0.0
+        parts["valuation"] = _clamp(v + neg, GROUPS["valuation"])
 
     if not fin and (m.get("net_debt_ebitda") is not None or m.get("interest_coverage") is not None):
-        s = 0.0
+        st = 0.0
         d = m.get("net_debt_ebitda")
         if d is not None:
             if d < 0:
-                s += 8; opp.append(L["net_cash"])
+                st += 8; opp.append(L["net_cash"])
             elif d < 1:
-                s += 8; opp.append(L["debt_low"].format(v=d))
+                st += 8; opp.append(L["debt_low"].format(v=d))
             elif d < 2.5:
-                s += 3
+                st += 3
             elif d < 4:
-                s -= 5; thr.append(L["debt_high"].format(v=d))
+                st -= 5; thr.append(L["debt_high"].format(v=d))
             else:
-                s -= 10; thr.append(L["debt_high"].format(v=d))
+                st -= 10; thr.append(L["debt_high"].format(v=d))
+                broken.append("debt")
         c = m.get("interest_coverage")
         if c is not None:
             if c > 10:
-                s += 4
+                st += 4
             elif c < 3:
-                s -= 6; thr.append(L["cover_low"].format(v=c))
-        parts["strength"] = _clamp(s, GROUPS["strength"])
+                st -= 6; thr.append(L["cover_low"].format(v=c))
+        parts["strength"] = _clamp(st, GROUPS["strength"])
 
     if m.get("revenue_cagr") is not None or m.get("eps_cagr") is not None:
         g = 0.0
@@ -318,6 +353,9 @@ def score_financials(m: dict | None, L: dict, opp: list, thr: list, pat: list) -
                 g += 5; opp.append(L["eps_up"].format(v=ec))
             elif ec < 0:
                 g -= 5; thr.append(L["eps_dn"].format(v=ec))
+        if m.get("eps_declines", 0) >= run:
+            broken.append("eps")
+            thr.append(L["eps_declining"].format(n=m["eps_declines"]))
         dg = (m.get("dividends") or {}).get("growth_5y")
         if dg is not None and dg > 5:
             g += 4; opp.append(L["div_growth"].format(v=dg))
@@ -335,6 +373,8 @@ def score_financials(m: dict | None, L: dict, opp: list, thr: list, pat: list) -
             q -= 8; thr.append(L["roic_low"].format(v=r))
         if (m.get("roic_min") or 0) >= 10:
             q += 4
+        if m.get("roic_declines", 0) >= run:
+            q -= 5; broken.append("roic"); thr.append(L["roic_declining"].format(n=m["roic_declines"]))
     elif fin and m.get("roe_avg") is not None:
         seen = True
         r = m["roe_avg"]
@@ -356,13 +396,15 @@ def score_financials(m: dict | None, L: dict, opp: list, thr: list, pat: list) -
             q -= 5; thr.append(L["dilution"].format(v=m["dilution_pa"]))
         elif m["dilution_pa"] < -1:
             q += 3; opp.append(L["buyback"].format(v=-m["dilution_pa"]))
+        if (m.get("dilution_last") or 0) > 3 and (m.get("dilution_last") or 0) > (m.get("dilution_pa") or 0) + 1:
+            broken.append("dilution")  # dilution qui s'accélère
     if not fin and m["years"] >= 3:
         seen = True
-        neg = m["years"] - m.get("fcf_positive_years", 0)
-        if neg == 0:
+        neg_years = m["years"] - m.get("fcf_positive_years", 0)
+        if neg_years == 0:
             q += 3
-        elif neg * 2 >= m["years"]:
-            q -= 5; thr.append(L["fcf_irregular"].format(n=neg, t=m["years"]))
+        elif neg_years * 2 >= m["years"]:
+            q -= 5; thr.append(L["fcf_irregular"].format(n=neg_years, t=m["years"]))
     dv = m.get("dividends") or {}
     if dv.get("years_without_cut", 0) >= 10:
         seen = True
@@ -371,12 +413,27 @@ def score_financials(m: dict | None, L: dict, opp: list, thr: list, pat: list) -
         thr.append(L["payout_high"].format(v=m["payout_ratio"]))
     if seen:
         parts["quality"] = _clamp(q, GROUPS["quality"])
-    return parts
+    return parts, broken
 
 
-def local_advice(sym, lang, quote, hist, arts, now=None, fin=None, kind="stock", leveraged=False):
-    """Conseil long terme : fondamentaux et valorisation (60 pts), qualité et régularité (25), tendance de fond (15).
-    fin : indicateurs financiers (services.financials.metrics) à la date du conseil ; les actualités sont informatives."""
+def momentum_12_1(hist, bench=None, now=None) -> float | None:
+    """Rendement sur 12 mois hors dernier mois, moins celui du MSCI World (CW8) sur la même fenêtre (points de %)."""
+    c = [p.get("adj") or p["close"] for p in hist]
+    if len(c) < 253 or not c[-253]:
+        return None
+    mine = c[-22] / c[-253] - 1
+    if bench:
+        b_at = _series_at(bench)
+        b0, b1 = b_at(hist[-253]["ts"]), b_at(hist[-22]["ts"])
+        if b0 and b1:
+            return (mine - (b1 / b0 - 1)) * 100
+    return (mine - MARKET_RETURN / 100) * 100
+
+
+def local_advice(sym, lang, quote, hist, arts, now=None, fin=None, kind="stock", leveraged=False, bench=None):
+    """Conseil long terme : fondamentaux et valorisation (48 pts), qualité et régularité (25), tendance (27 : moyenne
+    200 jours et force relative 12-1 face au MSCI World). fin : indicateurs financiers à la date du conseil ;
+    bench : historique de CW8 ; les actualités sont informatives (hors score)."""
     now = now or time.time()
     L = T.get(lang, T["en"])
     tech = technicals(hist)
@@ -384,14 +441,24 @@ def local_advice(sym, lang, quote, hist, arts, now=None, fin=None, kind="stock",
     nv = news_view(arts, now)
     opp, thr, pat = [], [], []
     parts = {}
+    up = None
     if tech.get("sma200"):
         up = tech["price"] > tech["sma200"]
-        parts["trend"] = 10 if up else -10
+        parts["trend"] = 15 if up else -15
         (opp if up else thr).append(L["above200" if up else "below200"])
+    mom = momentum_12_1(hist, bench, now)
+    if mom is not None:
+        parts["momentum"] = _clamp(mom * 0.3, GROUPS["momentum"])
+        if mom >= 10:
+            opp.append(L["mom_rel_up"].format(v=mom))
+        elif mom <= -10:
+            thr.append(L["mom_rel_dn"].format(a=abs(mom)))
     if tech.get("cagr") is not None:
         pat.append(L["cagr"].format(c=tech["cagr"], y=int(tech["years"]), dd=-tech["max_drawdown"]))
+    broken = []
     if kind == "stock":
-        parts.update(score_financials(fin, L, opp, thr, pat))
+        fparts, broken = score_financials(fin, L, opp, thr, pat, up)
+        parts.update(fparts)
         if not fin or not fin.get("years"):
             pat.append(L["no_fin"])
     dy = quote.get("dividend_yield")
@@ -403,6 +470,14 @@ def local_advice(sym, lang, quote, hist, arts, now=None, fin=None, kind="stock",
         thr.insert(0, L["leveraged"])
     score = int(max(-100, min(100, round(sum(parts.values())))))
     verdict = _verdict(score)
+    # Verdict symétrique : une thèse cassée (ROIC ou bénéfices en baisse deux ans de suite, dette excessive, dilution
+    # qui s'accélère) plafonne le verdict, quels que soient la valorisation et le cours
+    if len(broken) >= 2 and VERDICTS.index(verdict) > VERDICTS.index("REDUCE"):
+        verdict = "REDUCE"
+    elif len(broken) == 1 and VERDICTS.index(verdict) > VERDICTS.index("HOLD"):
+        verdict = "HOLD"
+    if broken:
+        thr.insert(0, L["thesis_broken"].format(n=len(broken)))
     if kind != "stock":  # ETF, indices… : pas de verdict d'achat / vente
         verdict, score = "HOLD", min(score, 15) if score > 0 else max(score, -15)
         pat.insert(0, L["etf"])
@@ -417,6 +492,7 @@ def local_advice(sym, lang, quote, hist, arts, now=None, fin=None, kind="stock",
         "summary": L["summary"].format(name=quote.get("short_name", sym), v=L["v"][verdict], s=score, lead=". ".join(x.rstrip(".") for x in lead) + "."),
         "opportunities": opp, "threats": thr, "patterns": pat, "catalysts": [],
         "components": {k: round(v, 1) for k, v in parts.items()}, "coverage": round(coverage, 2),
+        "broken": broken, "momentum_12_1": round(mom, 1) if mom is not None else None,
         "technicals": {k: (round(v, 2) if isinstance(v, float) else v) for k, v in tech.items()},
         "news": {k: v for k, v in nv.items() if k != "topics"},
         "events": evs[-12:][::-1], "engine": "local", "ai_error": None, "verification": None,
@@ -425,24 +501,25 @@ def local_advice(sym, lang, quote, hist, arts, now=None, fin=None, kind="stock",
     }
 
 
+EVENT_LIST = ", ".join(newsevents.TYPES)
+
+
 def _prompt(base, arts, lang, pea=None, compact=False):
     t = base["technicals"]
     lines = [f"[{i}] {datetime.fromtimestamp(a['timestamp'], timezone.utc):%Y-%m-%d} | {a['source']} | {a['headline']}"
              + (f" — {a['summary'][:120]}" if a["summary"] else "") for i, a in enumerate(arts)]
-    evs = [f"{e['date']}: {e['change']:+.1f}% (20 sessions later: {e['after_20d']}%) news: {' / '.join(e['headlines']) or 'none'}"
-           for e in base["events"]]
     out = f"""You are a long-term investor in the tradition of Buffett, Munger, Lynch and Fisher: you judge the business (moat, ROIC, free cash-flow,
 balance sheet, management, valuation against its own history), not short-term price moves or media noise. Analyse {base['name']} ({base['symbol']}).
 
 PRICE DATA (daily, up to 10 years): {json.dumps(t)}
 QUANTITATIVE SIGNALS: {json.dumps(base['components'])}
 HISTORICAL PATTERNS: {json.dumps(base['patterns'], ensure_ascii=False)}
-MAJOR PRICE SHOCKS (most recent first) with surrounding news: {json.dumps(evs, ensure_ascii=False)}
 COMPANY ACCOUNTS (published annual accounts, last {(base.get('financials') or {}).get('years', 0)} fiscal years; null = unknown, never guess): {json.dumps({k: v for k, v in (base.get('financials') or {}).items() if k != 'annual'}, ensure_ascii=False)}
 ANNUAL FIGURES: {json.dumps((base.get('financials') or {}).get('annual') or [], ensure_ascii=False)}
 RISK (computed): {json.dumps(base.get('risk') or {})}
 RELATIVE STRENGTH (computed, vs benchmark and sector peers): {json.dumps(base.get('relative') or {})}
-LOCAL QUANTITATIVE PRIOR: score {base['score']} (-100..100), verdict {base['verdict']}; this model's verdicts replayed monthly over 5 years were right {((base.get('track_record') or {}).get('6m') or {}).get('hit_rate')} % of the time at 6 months (50 % = chance).
+LOCAL QUANTITATIVE PRIOR: score {base['score']} (-100..100), verdict {base['verdict']}, thesis warnings {base.get('broken') or []}.
+MODEL RELIABILITY (cross-sectional, all stocks ranked monthly, 12-month rank correlation between score and later return): {json.dumps({k: (base.get('reliability') or {}).get(k) for k in ('level', 'model_ic', 'model_ic_low', 'model_ic_high', 'model_months')})}. If the interval contains 0 the model has NOT been shown to predict anything: say so and do not lean on its score.
 INVESTOR'S PEA (French tax wrapper, personal data, EUR): {json.dumps(pea, ensure_ascii=False) if pea else "unknown"}
 RECENT ARTICLES (numbered):
 {chr(10).join(lines)}
@@ -459,12 +536,16 @@ strong evidence. Never invent figures that are not given above.
 
 Answer ONLY with JSON, all text in {LANG_NAMES.get(lang, 'English')}:
 {{"verdict": "STRONG_BUY|BUY|HOLD|REDUCE|SELL", "score": <int -100..100>, "confidence": "low|medium|high",
-"horizon": "<short phrase, e.g. 3-6 months>", "summary": "<4-6 sentences of investor reasoning>",
+"horizon": "<1, 3 or 5 years>", "summary": "<4-6 sentences of investor reasoning>",
 "opportunities": ["..."], "threats": ["..."], "patterns": ["<recurring behaviours spotted>"], "catalysts": ["<upcoming events to watch>"],
 "prob_outperform_12m": <0..100, probability the stock beats its benchmark over 12 months>,
 "scenarios": {{"bear": {{"return_12m": <%>, "probability": <%>}}, "base": {{...}}, "bull": {{...}}}},
-"article_sentiments": [{{"i": <article number>, "s": <float -1..1 impact on the stock>}}]}}
-"article_sentiments" MUST contain exactly one entry for EVERY numbered article (0 to {len(arts) - 1})."""
+"article_sentiments": [{{"i": <article number>, "s": <float -1..1 impact on the stock>, "type": "<one of: {EVENT_LIST} or none>",
+  "magnitude": "<quantified size from the article, e.g. '3 % of revenue' or '200 M€', or null>", "durable": <true|false>,
+  "moat": <true if it changes the competitive advantage, else false>, "eps_impact_pct": <estimated % effect on normalised EPS, or null>}}]}}
+"article_sentiments" MUST contain exactly one entry for EVERY numbered article (0 to {len(arts) - 1}). Extract facts, not opinions:
+the type must come from the list, the magnitude must be stated in the article (null otherwise).
+Count only the first article of duplicate stories."""
     if compact:  # analyses groupées : réponse courte, sans notation des articles
         out = out.split('"article_sentiments"')[0].rstrip(", \n") + "}\nGive 2 to 4 short items per list."
     return out
@@ -493,12 +574,12 @@ def advise(sym, lang="fr", force=False, use_ai=True, max_wait=20.0, backfill=Tru
     quote["fundamentals"] = fundamentals.get(sym, fetch=fetch_fundamentals)
     fin_raw = financials.raw(sym) if kind == "stock" else None  # comptes publics sans clé : toujours récupérés (cache 7 jours)
     fin = financials.metrics(fin_raw, quote.get("price"), sector, hist, currency=quote.get("currency"))
-    result = local_advice(sym, lang, quote, hist, arts, fin=fin, kind=kind, leveraged=bool(info.get("leveraged")))
-    result["sector"] = sector
     try:
         bench = yahoo.daily_history(BENCHMARK)
     except Exception:
         bench = None
+    result = local_advice(sym, lang, quote, hist, arts, fin=fin, kind=kind, leveraged=bool(info.get("leveraged")), bench=bench)
+    result["sector"] = sector
     try:
         result["track_record"] = backtest(sym, quote, hist, fin_raw, sector, kind, bench)
     except Exception as e:
@@ -506,6 +587,12 @@ def advise(sym, lang="fr", force=False, use_ai=True, max_wait=20.0, backfill=Tru
         print(f"Backtest {sym}: {e}")
 
     _enrich(result, sym, hist, bench)
+    try:
+        region = yahoo.daily_history(insights.benchmark(sym)[0])
+        result["news_events"] = newsevents.for_symbol(sym, hist, region)
+    except Exception as e:
+        result["news_events"] = []
+        print(f"Événements {sym} : {e}")
 
     if use_ai and not want_ai:
         result["ai_error"] = "Aucune clé IA : ajoutez-en une dans Paramètres → Clés IA"
@@ -536,8 +623,14 @@ def advise(sym, lang="fr", force=False, use_ai=True, max_wait=20.0, backfill=Tru
                 for item in ai.get("article_sentiments") or []:
                     i = item.get("i")
                     if isinstance(i, int) and 0 <= i < len(recent):
-                        conn.execute("UPDATE articles SET ai_sentiment = ? WHERE id = ?",
-                                     (str(max(-1.0, min(1.0, float(item.get("s", 0))))), recent[i]["id"]))
+                        try:
+                            sent = str(max(-1.0, min(1.0, float(item.get("s", 0)))))
+                        except (TypeError, ValueError):
+                            sent = "0"
+                        ev = {"type": item.get("type") if item.get("type") in newsevents.TYPES else None,
+                              "magnitude": item.get("magnitude"), "durable": bool(item.get("durable")), "moat": bool(item.get("moat")),
+                              "eps_impact_pct": item.get("eps_impact_pct") if isinstance(item.get("eps_impact_pct"), (int, float)) else None}
+                        conn.execute("UPDATE articles SET ai_sentiment = ?, ai_event = ? WHERE id = ?", (sent, json.dumps(ev), recent[i]["id"]))
         except Exception as e:
             result["ai_error"] = str(e)[:300]
 
@@ -571,10 +664,14 @@ def outlook(ai: dict) -> dict | None:
         p = max(0.0, min(100.0, float(ai.get("prob_outperform_12m"))))
     except (TypeError, ValueError):
         p = None
+    try:
+        shrink = ai_store.measured_shrink(AI_SHRINK)
+    except Exception:
+        shrink = AI_SHRINK
     return {"scenarios": rows, "expected_12m": round(expected, 1),
-            "expected_12m_adjusted": round(MARKET_RETURN + AI_SHRINK * (expected - MARKET_RETURN), 1),
-            "prob_outperform": p, "prob_outperform_adjusted": round(50 + AI_SHRINK * (p - 50)) if p is not None else None,
-            "shrink": AI_SHRINK}
+            "expected_12m_adjusted": round(MARKET_RETURN + shrink * (expected - MARKET_RETURN), 1),
+            "prob_outperform": p, "prob_outperform_adjusted": round(50 + shrink * (p - 50)) if p is not None else None,
+            "shrink": shrink}
 
 
 def _enrich(result, sym, hist, world=None):
@@ -597,7 +694,8 @@ def _enrich(result, sym, hist, world=None):
             pass
         result["relative"] = insights.relative(sym, hist, bench, info.get("sector"), screener._snapshot)
         result["live_record"] = insights.live_record(sym, hist, world)
-        result["reliability"] = insights.reliability(result.get("track_record"), result["live_record"], result["risk"])
+        from services import validation
+        result["reliability"] = insights.reliability(result.get("track_record"), result["live_record"], result["risk"], validation.latest())
         result["health"] = insights.health(result.get("financials"))
     except Exception as e:
         print(f"Analyse complémentaire {sym} : {e}")
@@ -605,7 +703,7 @@ def _enrich(result, sym, hist, world=None):
 
 HORIZONS = {"1y": 252, "3y": 756, "5y": 1260}
 BENCHMARK = "CW8.PA"  # MSCI World dividendes réinvestis, en euros : l'alternative simple de l'investisseur PEA
-ENGINE_VERSION = 3
+ENGINE_VERSION = 4
 
 
 def _series_at(hist):
@@ -631,7 +729,8 @@ def backtest(sym, quote, hist, fin_raw=None, sector=None, kind="stock", bench=No
     for t in range(260, len(hist) - min(HORIZONS.values()), 21):
         ts, price = hist[t]["ts"], hist[t]["close"]
         m = financials.metrics(fin_raw, price, sector, hist[: t + 1], as_of=ts, currency=quote.get("currency")) if fin_raw else None
-        r = local_advice(sym, "en", {**quote, "dividend_yield": None, "fundamentals": None}, hist[: t + 1], [], now=ts, fin=m, kind=kind)
+        r = local_advice(sym, "en", {**quote, "dividend_yield": None, "fundamentals": None}, hist[: t + 1], [], now=ts, fin=m, kind=kind,
+                         bench=bench)  # seules les dates passées de CW8 sont lues
         full = bool(m and m.get("years"))
         b0 = b_at(ts)
         for h, d in HORIZONS.items():

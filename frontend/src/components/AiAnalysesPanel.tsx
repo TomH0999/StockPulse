@@ -3,7 +3,7 @@ import { AlertTriangle, ChevronDown, ChevronRight, History, Layers3, Trash2, X }
 import { api, EnsembleJob, EnsembleResult, errorMessage, SavedAnalysis, Theme, Verdict } from '../services/api';
 import { useI18n, VERDICT_LABEL, VERDICT_STYLE } from '../context';
 
-const SIZES = [1, 10, 25, 50, 100];
+const SIZES = [1, 5, 10];
 const ORDER: Verdict[] = ['STRONG_BUY', 'BUY', 'HOLD', 'REDUCE', 'SELL'];
 const BAR: Record<Verdict, string> = { STRONG_BUY: 'bg-emerald-600', BUY: 'bg-emerald-400', HOLD: 'bg-slate-400', REDUCE: 'bg-amber-500', SELL: 'bg-rose-500' };
 const SAVED_EVENT = 'stockpulse:ai-saved';
@@ -54,7 +54,7 @@ export function EnsembleSummary({ r }: { r: EnsembleResult }) {
       <p className="text-xs">{t[`ensRead_${r.strength}`].replace('{b}', String(r.bullish_share)).replace('{s}', String(r.bearish_share))}
         {' '}{t.ensLocal.replace('{s}', `${r.local_score > 0 ? '+' : ''}${r.local_score}`)}
         {r.runs > 1 && r.score_max - r.score_min > 60 && <> {t.ensRange.replace('{a}', String(r.score_min)).replace('{b}', String(r.score_max))}</>}</p>
-      {r.runs >= 10 && (
+      {r.runs >= 5 && (
         <p className={`text-xs font-semibold ${r.retained ? 'up' : 'text-amber-600 dark:text-amber-400'}`}>{r.retained ? `✓ ${t.ensRetained}` : `⚠ ${t.ensUncertain}`}</p>
       )}
       {r.outlook && r.outlook.expected_12m_adjusted !== null && (

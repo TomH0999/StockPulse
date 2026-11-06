@@ -22,7 +22,26 @@ TYPES = ["TotalRevenue", "GrossProfit", "OperatingIncome", "EBIT", "EBITDA", "Ne
          "TaxRateForCalcs"]
 # Secteurs où la dette fait partie du métier (banques, assurances, foncières) : ROE au lieu du ROIC, pas de ratio de dette
 FINANCIAL_SECTORS = ("financial", "bank", "insurance", "real estate", "reit", "finance")
+# Secteurs cycliques (automobile, matériaux, énergie, chimie…) : un PER bas au sommet du cycle est un piège ;
+# on y juge la valorisation sur le bénéfice et le free cash-flow moyens des exercices disponibles
+CYCLICAL_SECTORS = ("energy", "basic materials", "materials", "consumer cyclical", "consumer discretionary")
 REPORT_LAG = 90 * 86400  # comptes publiés environ 3 mois après la clôture : pas d'information « du futur » dans le backtest
+
+
+def is_cyclical(sector: str | None) -> bool:
+    return bool(sector) and any(w in sector.lower() for w in CYCLICAL_SECTORS)
+
+
+def _declines(values: list) -> int:
+    """Nombre de baisses consécutives en fin de série (ex. ROIC en baisse deux années de suite = 2)."""
+    vals = [v for v in values if v is not None]
+    n = 0
+    for a, b in zip(vals[-2::-1], vals[::-1]):
+        if b < a:
+            n += 1
+        else:
+            break
+    return n
 
 
 def is_financial(sector: str | None) -> bool:
@@ -75,9 +94,26 @@ def raw(sym: str, fetch: bool = True) -> dict | None:
     except Exception as e:
         print(f"Dividendes {sym} : {e}")
         divs = []
+    annual = _archive(sym, annual)
     data = {"annual": annual, "dividends": divs, "fetched_at": int(time.time()), "v": VERSION}
     store.set_setting(key, json.dumps(data))
     return data
+
+
+def _archive(sym: str, annual: list[dict]) -> list[dict]:
+    """Archive locale des comptes : chaque exercice vu est conservé (la source gratuite n'en sert que 4) ; un exercice
+    republié remplace l'ancien. Avec les années, l'historique s'allonge (régularité, croissance, médiane du PER)."""
+    key = f"finarch:{sym}"
+    try:
+        old = {y["date"]: y for y in json.loads(store.get_setting(key) or "[]")}
+    except ValueError:
+        old = {}
+    for y in annual:
+        old[y["date"]] = {**old.get(y["date"], {}), **y}
+    merged = [old[d] for d in sorted(old)]
+    if merged:
+        store.set_setting(key, json.dumps(merged))
+    return merged
 
 
 def _g(y: dict, k: str):
@@ -189,6 +225,13 @@ def metrics(data: dict | None, price: float | None, sector: str | None = None, h
             if p and e and e > 0:
                 hist_pe.append(p / e)
     pe = price / eps_last if price and eps_last and eps_last > 0 else None
+    eps_series = [_g(y, "DilutedEPS") for y in years]
+    eps_known = [e for e in eps_series if e is not None]
+    eps_avg = statistics.mean(eps_known) if eps_known else None
+    fcf_known = [_g(y, "FreeCashFlow") for y in years if _g(y, "FreeCashFlow") is not None]
+    cyc = is_cyclical(sector)
+    sh_series = [(_g(y, "OrdinarySharesNumber") or _g(y, "DilutedAverageShares")) for y in years]
+    sh_growth = [(b / a - 1) * 100 for a, b in zip(sh_series, sh_series[1:]) if a and b]
     ev = cap + (net_debt or 0) if cap else None
     out = {
         "years": len(years), "first_year": first["date"][:4], "last_year": last["date"][:4], "financial_sector": fin,
@@ -205,6 +248,13 @@ def metrics(data: dict | None, price: float | None, sector: str | None = None, h
         "roe": round(roes[-1], 1) if roes else None, "roe_avg": round(statistics.mean(roes), 1) if roes else None,
         "op_margin_std": round(statistics.pstdev(op_margins), 1) if len(op_margins) >= 3 else None,
         "revenue_cagr": _r(_cagr(_g(first, "TotalRevenue"), rev, n)), "eps_cagr": _r(_cagr(eps_first, eps_last, n)),
+        # direction des bénéfices : un PER bas n'est une opportunité que si les bénéfices ne s'effondrent pas
+        "eps_change": _r((eps_last / eps_series[-2] - 1) * 100) if len(eps_series) > 1 and eps_last is not None and eps_series[-2] and eps_series[-2] > 0 else None,
+        "eps_declines": _declines(eps_series), "roic_declines": _declines([roic(y) for y in years]) if not fin else 0,
+        "dilution_last": _r(sh_growth[-1]) if sh_growth else None,
+        "cyclical": cyc,
+        "pe_normalized": round(price / eps_avg, 1) if cyc and price and eps_avg and eps_avg > 0 else None,
+        "fcf_yield_normalized": _pct(_div(statistics.mean(fcf_known), cap)) if cyc and fcf_known and cap else None,
         "fcf_positive_years": sum(1 for y in years if (_g(y, "FreeCashFlow") or 0) > 0),
         "net_debt_ebitda": round(net_debt / ebitda, 2) if net_debt is not None and ebitda and ebitda > 0 and not fin else None,
         "interest_coverage": round(ebit / interest, 1) if ebit and interest and not fin else None,

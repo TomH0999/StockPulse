@@ -35,16 +35,15 @@ def test_relative_strength_vs_benchmark_and_sector():
     assert insights.benchmark("SAP.DE")[1] == "STOXX Europe 600" and insights.benchmark("AAPL")[0] == "^GSPC"
 
 
-def test_reliability_levels_vs_world():
+def test_reliability_comes_from_cross_sectional_model():
     risk = {"level": "medium"}
     assert insights.reliability(None, None, risk)["level"] == "insufficient"
-    good = {"1y": {"buy_n": 30, "sell_n": 5, "edge": 12, "engine": "full"}}
-    assert insights.reliability(good, None, risk)["signal"] is True
-    assert insights.reliability({"1y": {"buy_n": 30, "sell_n": 0, "edge": 1}}, None, risk)["level"] == "weak"
-    # les conseils réellement émis comptent double : un vrai historique mauvais fait tomber le signal
-    assert insights.reliability(good, {"1y": {"n": 40, "hit_rate": 35}}, risk)["level"] in ("weak", "contrarian")
-    assert insights.reliability({"1y": {"buy_n": 30, "sell_n": 0, "edge": -15}}, None, risk)["level"] == "contrarian"
-    assert "trend_only" in insights.reliability({"1y": {"buy_n": 3, "engine": "trend_only"}}, None, risk)["reasons"]
+    pos = {"status": "positive", "ic": {"mean": 0.08, "low": 0.02, "high": 0.14}, "months": 36, "universe": 300}
+    r = insights.reliability({"1y": {"edge": -12, "engine": "full"}}, None, risk, pos)
+    assert r["signal"] is True and r["model_ic"] == 0.08 and r["stock_edge"] == -12   # la valeur seule n'a plus le dernier mot
+    assert insights.reliability(None, None, risk, {**pos, "status": "inconclusive"})["level"] == "inconclusive"
+    assert insights.reliability(None, None, risk, {**pos, "status": "negative"})["level"] == "contrarian"
+    assert "trend_only" in insights.reliability({"1y": {"engine": "trend_only"}}, None, risk)["reasons"]
 
 
 def test_live_record_compares_to_world():
@@ -96,6 +95,6 @@ def test_advise_includes_insights_and_ai_outlook(market, monkeypatch):
                               "bull": {"return_12m": 25, "probability": 25}}}, "groq"
     monkeypatch.setattr(ai_pool, "complete_json", fake)
     r = advisor.advise("MC.PA", "fr", force=True)
-    assert r["risk"]["volatility"] > 0 and "max_weight" in r["risk"] and r["reliability"]["level"] in ("reliable", "weak", "contrarian", "insufficient")
+    assert r["risk"]["volatility"] > 0 and "max_weight" in r["risk"] and r["reliability"]["level"] in ("reliable", "inconclusive", "contrarian", "insufficient")
     assert r["relative"]["benchmark"] == "CAC 40" and r["ai_view"]["outlook"]["prob_outperform_adjusted"] == 55
     assert seen["effort"] == "medium" and "LOCAL QUANTITATIVE PRIOR" in seen["prompt"] and "RISK (computed)" in seen["prompt"]

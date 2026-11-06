@@ -100,4 +100,17 @@ Classement, liste des entreprises, analyses automatiques, pool de clés IA multi
 - [x] Stop facultatif (désactivé par défaut), pas de cotation sûrs, alertes réduites (ni variations du jour ni changements de verdict)
 - [x] Classements et tableau de bord long terme (plus de « plus fortes hausses du jour ») ; langues réduites au français et à l'anglais
 - [x] Liechtenstein retiré par prudence des pays éligibles ; éligibilité « à confirmer » pour les valeurs sans ISIN
-- [ ] À venir : exposition géographique par chiffre d'affaires, comptes sur 10 ans (source payante), source de cours de secours
+
+## ✅ v3.1 — Prouver avant d'affirmer
+- [x] Fiabilité du modèle mesurée en coupe transversale (toutes les valeurs classées chaque mois, corrélation de rang à 12 mois, quintiles, face au STOXX Europe 600 et au MSCI World), intervalle de confiance de Student sur les années indépendantes ; état gris « non mesurable » quand l'intervalle contient 0, rouge seulement si négatif prouvé
+- [x] Mesure du 06/11/2026 sur 292 valeurs PEA, 31 mois : IC +0,12 [−0,41 ; +0,64] → non mesurable ; ordre des verdicts cohérent (Achat fort +4,0 pts, Vendre −8,2 pts face à l'univers) ; tendance (+0,12) et force 12-1 (+0,18) restent les signaux les plus utiles
+- [x] Outil de calibration walk-forward (tools/validate.py) : pondérations inchangées (gain de test non significatif, surajustement probable)
+- [x] Garde-fou « valeur + tendance », force relative 12-1 dans le score, bénéfices normalisés pour les cycliques, verdict symétrique (thèse fragilisée → « Alléger »)
+- [x] Prompt de l'IA corrigé (ancrage vide), restes court terme retirés, extraction structurée des articles (type d'événement, ampleur, durable, avantage concurrentiel)
+- [x] Étude d'événements sur l'archive (rendement anormal à 0 / 5 / 20 / 60 séances), test « déjà dans les prix ? », filtre de pertinence (la société doit être nommée)
+- [x] Surprises de résultats, révisions des analystes et transactions des dirigeants (clé gratuite Finnhub, FMP pour les surprises)
+- [x] Précision de l'IA mesurée à l'échéance (score de Brier) et correction AI_SHRINK réglée dessus dès 30 échéances
+- [x] Archive locale des comptes : l'historique s'allonge au-delà des 4 exercices servis par la source
+- [x] Retenues à la source par pays sur le compte-titres ; notes affichées (assurance-vie après 8 ans, gains PEA avant 2018, composition approchée des ETF) ; « PEA à confirmer » dans les ordres
+- [x] Analyses IA groupées limitées à 10 et présentées comme de la stabilité, pas de la fiabilité
+- [ ] À venir : comptes sur 10 ans (SEC EDGAR, ESEF / filings.xbrl.org), exposition géographique par chiffre d'affaires, valorisation face au secteur, base BDIF de l'AMF, source de cours de secours

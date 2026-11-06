@@ -8,6 +8,7 @@ import { HealthList } from './HealthPanel';
 import { AlertTags, usePortfolio } from './PortfolioView';
 import { Sparkline } from './Sparkline';
 import { VerdictBadge } from './VerdictBadge';
+import { ModelReliability } from './ModelReliability';
 
 interface Props {
   health: HealthReport | null;
@@ -43,13 +44,11 @@ export function HomeView({ health, onRecheck, checking, onOpen, onNavigate }: Pr
   const [pf] = usePortfolio();
   const [favorites, setFavorites] = useState<Favorite[]>([]);
   const [events, setEvents] = useState<AlertEvent[]>([]);
-  const [reliability, setReliability] = useState<Record<string, { symbols: number; n: number; edge: number | null; reliable: number }>>({});
   const [due, setDue] = useState<Thesis[]>([]);
   useEffect(() => {
     const load = () => {
       api.favorites().then(setFavorites).catch(() => {});
       api.alerts().then((a) => setEvents(a.events)).catch(() => {});
-      api.trackRecord().then(setReliability).catch(() => {});
       api.theses().then((r) => setDue(r.due)).catch(() => {});
     };
     load();
@@ -115,18 +114,7 @@ export function HomeView({ health, onRecheck, checking, onOpen, onNavigate }: Pr
       </Panel>
 
       <Panel icon={<Gauge className="w-4 h-4 text-violet-500" />} title={t.globalReliability}>
-        <p className="text-xs muted">{t.trackRecord}</p>
-        <div className="grid grid-cols-3 gap-2 text-center">
-          {(['1y', '3y', '5y'] as const).map((h) => {
-            const r = reliability[h];
-            return (
-              <div key={h}>
-                <div className={`text-2xl font-bold ${r?.edge == null ? 'muted' : r.edge >= 5 ? 'up' : r.edge <= -5 ? 'down' : ''}`}>{r?.edge != null ? `${r.edge > 0 ? '+' : ''}${r.edge}` : '–'} pts</div>
-                <div className="text-xs muted">{t[`hz_${h}`]} · {r?.reliable ?? 0}/{r?.symbols ?? 0} {t.reliableShort}</div>
-              </div>
-            );
-          })}
-        </div>
+        <ModelReliability compact />
       </Panel>
 
       <Panel icon={<Star className="w-4 h-4 text-amber-400" />} title={t.favorites}>

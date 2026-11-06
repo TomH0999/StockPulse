@@ -11,8 +11,7 @@ import time
 
 import store
 
-EDGE = 5                # points d'avantage sur le taux de base (face au MSCI World) au-delà desquels le signal est jugé fiable
-MIN_SAMPLES = 10        # nombre minimal d'achats / ventes rejoués pour juger
+EDGE = 5                # repère d'affichage de l'avantage d'une valeur seule (information, ne décide plus du signal)
 MAX_LINE = 20.0         # plafond d'une ligne dans le PEA (%)
 REFERENCE_VOL = 20.0    # volatilité d'un grand indice actions (%) : une valeur deux fois plus volatile = ligne deux fois plus petite
 EU_SUFFIXES = (".DE", ".AS", ".MI", ".MC", ".BR", ".LS", ".IR", ".HE", ".VI", ".ST", ".CO", ".OL", ".WA", ".F", ".SW", ".L")
@@ -140,29 +139,27 @@ def live_record(sym: str, hist, world=None) -> dict:
     return out
 
 
-def reliability(track: dict | None, live: dict | None, risk_info: dict) -> dict:
-    """Le verdict n'est présenté comme un signal que s'il a battu le hasard face au MSCI World : avantage (taux de
-    réussite moins taux de base) d'au moins EDGE points sur les conseils rejoués à 1 an, conseils réels comptés double."""
-    t = (track or {}).get("1y") or {}
-    l1 = (live or {}).get("1y") or {}
+def reliability(track: dict | None, live: dict | None, risk_info: dict, model: dict | None = None) -> dict:
+    """Fiabilité du verdict = fiabilité du modèle mesurée en coupe transversale (services.validation) : sur une seule
+    valeur et 3 ans, une mesure n'a pas de sens statistique (fenêtres qui se chevauchent, verdict qui change peu).
+    - « reliable » : l'intervalle de confiance de la corrélation de rang est entièrement positif ;
+    - « contrarian » : entièrement négatif (le modèle se trompe significativement) ;
+    - « inconclusive » : l'intervalle contient 0 (non mesurable, ni preuve ni contre-preuve) ;
+    - « insufficient » : aucune mesure disponible.
+    Le rejeu sur la valeur seule et les conseils réellement émis restent affichés, à titre d'information."""
+    st = (model or {}).get("status")
+    level = {"positive": "reliable", "negative": "contrarian", "inconclusive": "inconclusive"}.get(st, "insufficient")
     reasons = []
-    decided = (t.get("buy_n") or 0) + (t.get("sell_n") or 0)
-    if decided < MIN_SAMPLES or t.get("edge") is None:
-        level = "insufficient"
-        reasons.append("history_short")
-    else:
-        edge = t["edge"]
-        if l1.get("n", 0) >= 10 and l1.get("hit_rate") is not None:
-            live_edge = l1["hit_rate"] - 50
-            edge = (edge * decided + live_edge * l1["n"] * 2) / (decided + l1["n"] * 2)
-            reasons.append("live_included")
-        level = "reliable" if edge >= EDGE else "contrarian" if edge <= -10 else "weak"
-        reasons.append(f"edge_{round(edge)}")
+    t = (track or {}).get("1y") or {}
     if t.get("engine") == "trend_only":
         reasons.append("trend_only")
     if risk_info.get("level") == "very_high":
         reasons.append("very_volatile")
-    return {"level": level, "signal": level == "reliable", "reasons": reasons, "threshold": EDGE}
+    ic = (model or {}).get("ic") or {}
+    return {"level": level, "signal": level == "reliable", "reasons": reasons,
+            "model_ic": ic.get("mean"), "model_ic_low": ic.get("low"), "model_ic_high": ic.get("high"),
+            "model_months": (model or {}).get("months"), "model_universe": (model or {}).get("universe"),
+            "stock_edge": t.get("edge")}
 
 
 def health(m: dict | None) -> dict | None:

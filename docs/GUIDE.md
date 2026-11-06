@@ -152,9 +152,12 @@ Lecture honnête :
 ## 9. Utilisation au quotidien
 
 - **Tableau de bord** : état de l'application, comptes, alertes, qualité à prix raisonnable, thèses à relire, fiabilité mesurée.
-- **Analyse** : verdict long terme (fondamentaux et valorisation 60 %, qualité 25 %, tendance 200 jours 15 %), fiabilité mesurée
-  face au MSCI World, chiffres de l'entreprise, risque et taille de ligne, enveloppe conseillée. L'IA donne une lecture à part :
-  elle explique, elle ne décide pas.
+- **Analyse** : verdict long terme (fondamentaux et valorisation 48, qualité 25, tendance et force relative 27), chiffres de
+  l'entreprise, risque et taille de ligne, enveloppe conseillée, événements d'actualité avec leur a priori historique. L'IA donne
+  une lecture à part : elle explique, elle ne décide pas.
+- **Fiabilité** (onglet de l'Analyse et tableau de bord) : une seule mesure pour tout le modèle, en coupe transversale. Gris =
+  non mesurable (l'intervalle contient 0), vert = signal prouvé, rouge = modèle prouvé dans l'erreur. À la publication de la v3.1
+  elle est grise : traitez les verdicts comme une grille de lecture, pas comme une prédiction.
 - **Alertes** : seulement vos alertes de prix (cloche 🔔) et la revue annuelle de vos thèses ; plus d'alerte sur les variations du
   jour ni sur les changements de verdict.
 - **Classement / Entreprises** : 2 900 valeurs (1 740 éligibles PEA), mises à jour chaque jour ; les valeurs suspendues ou

@@ -258,6 +258,19 @@ def portfolio_analysis(period: str = "1y"):
     return {"diversification": portfolio.diversification(portfolio.summary())}
 
 
+@app.get("/api/model/validation")
+def model_validation():
+    """Fiabilité du modèle mesurée en coupe transversale (et précision mesurée de l'IA)."""
+    from services import validation
+    return {"model": validation.latest(), "ai": ai_store.brier(), "ai_shrink": ai_store.measured_shrink(advisor.AI_SHRINK)}
+
+
+@app.get("/api/events/study")
+def event_study():
+    from services import events
+    return events.latest_study() or {"types": {}, "events": 0}
+
+
 @app.get("/api/accounts")
 def list_accounts():
     out = []

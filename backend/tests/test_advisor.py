@@ -37,8 +37,8 @@ def test_trend_is_capped_and_news_rsi_seasonality_do_not_score():
     now = h[-1]["ts"]
     quiet = advisor.local_advice("X", "fr", fake_quote("X"), h, [], now=now)
     noisy = advisor.local_advice("X", "fr", fake_quote("X"), h, arts([0.9] * 30, now), now=now)
-    assert quiet["score"] == noisy["score"] <= 15            # actualités : information seulement ; tendance plafonnée
-    assert set(quiet["components"]) == {"trend"} and quiet["coverage"] == 0 and quiet["confidence"] == "low"
+    assert quiet["score"] == noisy["score"] <= 27            # actualités : information seulement ; tendance + momentum plafonnés
+    assert set(quiet["components"]) <= {"trend", "momentum"} and quiet["coverage"] == 0 and quiet["confidence"] == "low"
     text = " ".join(quiet["patterns"] + quiet["opportunities"] + quiet["threats"])
     assert "RSI" not in text and "rebondi" not in text and "novembre" not in text.lower()
     assert any("Comptes de l'entreprise indisponibles" in p for p in quiet["patterns"])
@@ -92,7 +92,7 @@ def test_dividend_record():
 def test_etf_and_leveraged_have_no_buy_sell_verdict():
     h = make_hist(1500, drift=0.003)
     r = advisor.local_advice("CW8.PA", "fr", fake_quote("CW8.PA"), h, [], kind="etf")
-    assert r["verdict"] == "HOLD" and abs(r["score"]) < 15 and any("ETF" in p for p in r["patterns"])
+    assert r["verdict"] == "HOLD" and abs(r["score"]) <= 15 and any("ETF" in p for p in r["patterns"])
     lev = advisor.local_advice("LQQ.PA", "fr", fake_quote("LQQ.PA"), h, [], kind="etf", leveraged=True)
     assert "levier" in lev["threats"][0]
 
@@ -155,3 +155,37 @@ def test_cached_verdicts_summary(market):
     v = advisor.cached_verdicts()["AI.PA"]
     assert {"verdict", "score", "edge_1y", "fcf_yield", "roic_avg", "quality", "valuation", "div_streak"} <= set(v)
     assert v["fcf_yield"] is not None and v["quality"] is not None
+
+
+def test_value_trap_guard_and_broken_thesis():
+    """Stellantis 2023-2025 : PER bas, bénéfices qui s'effondrent, cours sous sa moyenne 200 jours -> pas d'achat."""
+    down = make_hist(1500, drift=-0.001)
+    trap = _metrics(make_fin(growth=0.0, margin=0.2, fcf_margin=0.15, net_debt=-50), price=20.0, hist=down)
+    trap.update(eps_change=-40.0, eps_declines=2, roic_declines=2)
+    r = advisor.local_advice("STLA", "fr", fake_quote("STLA"), down, [], fin=trap)
+    assert any("piège à valeur" in t for t in r["threats"]) and r["components"]["valuation"] <= 0
+    assert r["verdict"] in ("REDUCE", "SELL", "HOLD") and set(r["broken"]) >= {"eps", "roic"}
+    up = make_hist(1500, drift=0.002)
+    ok = advisor.local_advice("X", "fr", fake_quote("X"), up, [], fin={**trap, "eps_change": 5.0, "eps_declines": 0, "roic_declines": 0})
+    assert ok["components"]["valuation"] > 0 and not ok["broken"]
+
+
+def test_broken_thesis_caps_verdict():
+    h = make_hist(1500, drift=0.002)
+    m = _metrics(make_fin(growth=0.10, margin=0.22, fcf_margin=0.2, net_debt=-50), price=30.0, hist=h)
+    good = advisor.local_advice("X", "fr", fake_quote("X"), h, [], fin=m)
+    assert good["verdict"] in ("BUY", "STRONG_BUY")
+    one = advisor.local_advice("X", "fr", fake_quote("X"), h, [], fin={**m, "roic_declines": 2})
+    two = advisor.local_advice("X", "fr", fake_quote("X"), h, [], fin={**m, "roic_declines": 2, "eps_declines": 2, "eps_change": 1.0})
+    assert one["verdict"] == "HOLD" and two["verdict"] == "REDUCE" and "Thèse fragilisée" in two["threats"][0]
+
+
+def test_cyclicals_use_normalized_earnings():
+    m = _metrics(make_fin(), price=50.0, sector="Basic Materials")
+    assert m["cyclical"] and m["pe_normalized"] and m["fcf_yield_normalized"] is not None
+    assert not _metrics(make_fin(), price=50.0, sector="Healthcare")["cyclical"]
+
+
+def test_momentum_12_1_vs_world():
+    h, w = make_hist(600, drift=0.002), make_hist(600, drift=0.0005)
+    assert advisor.momentum_12_1(h, w) > 20 and advisor.momentum_12_1(w, h) < -20 and advisor.momentum_12_1(make_hist(100)) is None

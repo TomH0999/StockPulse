@@ -91,7 +91,8 @@ export function PortfolioView({ onOpen }: { onOpen: (symbol: string) => void }) 
           {data.account?.type === 'AV' && data.tax_if_withdrawn !== null && card(t.taxIfWithdrawn, money(data.tax_if_withdrawn, lang), <span className="muted">{data.tax_rate} %</span>)}
         </div>
       )}
-      {data?.tax_source && <p className="text-[11px] muted">{t.taxSourceLabel} : {data.tax_source}. {t.taxVerify}</p>}
+      {data?.tax_source && <p className="text-[11px] muted">{t.taxSourceLabel} : {data.tax_source}. {t.taxVerify}
+        {data.account?.type === 'AV' && <> {t.avNote}</>}{data.account?.pea_rules && <> {t.peaPre2018}</>}</p>}
 
       {tab === 'overview' && (
         <>
